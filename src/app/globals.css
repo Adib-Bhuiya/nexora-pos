@@ -1,0 +1,130 @@
+@import 'tailwindcss';
+
+/* Design tokens carried over from the prototype. */
+@theme {
+  --breakpoint-md: 760px; /* sidebar appears; sheets become centered dialogs */
+  --breakpoint-lg: 1050px; /* 3-column product grid, 4-column metrics */
+
+  --color-bg: #f5f6f8;
+  --color-ink: #172033;
+  --color-muted: #788397;
+  --color-line: #e7ebf1;
+  --color-brand: #315bd6;
+  --color-brand-dark: #244bc0;
+  --color-brand-soft: #eaf0ff;
+  --color-ok: #14805e;
+  --color-warn: #a96708;
+  --color-danger: #be3945;
+
+  --shadow-card: 0 8px 28px #17203308;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 90px;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font: 14px/1.45 var(--font-sans);
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary {
+    cursor: pointer;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 3px solid rgb(49 91 214 / 0.45);
+    outline-offset: 2px;
+  }
+  /* Large numerals line up in tables and totals. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Translucent material for floating chrome: content scrolls underneath. */
+.material {
+  background: rgb(255 255 255 / 0.86);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* ---------- motion (transform + opacity only) ---------- */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+/* On phones toasts live at the top (clear of sheets and the floating cart bar). */
+@keyframes toast-in-top {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (max-width: 759.98px) {
+  .toast-enter { animation-name: toast-in-top; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes check-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.page-enter { animation: page-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.toast-enter { animation: toast-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.pop-enter { animation: pop-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.check-enter { animation: check-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Reduced motion keeps feedback but swaps movement for a gentle cross-fade. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes toast-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes toast-in-top { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes check-pop { from { opacity: 0; } to { opacity: 1; } }
+  .animate-spin { animation-duration: 2s !important; }
+}
+
+/* Reduced transparency / higher contrast: frostier, near-solid surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  .material { background: #fff !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+@media (prefers-contrast: more) {
+  .material { background: #fff !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-color: #172033 !important; }
+  :root { --color-line: #b9c2d0; --color-muted: #566176; }
+}
+
+/* ---------- printing: only the receipt ---------- */
+#print-root { display: none; }
+@media print {
+  @page { margin: 4mm; }
+  html, body { background: #fff !important; }
+  #app-root, [data-overlay] { display: none !important; }
+  #print-root { display: block !important; }
+}
