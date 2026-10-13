@@ -5,10 +5,11 @@
   "type": "module",
   "description": "NEXORA POS: frontend-only retail point of sale (Next.js + TypeScript + Tailwind). Offline-first with IndexedDB.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build && node scripts/build-sw.mjs",
     "preview": "serve out -l 3000",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

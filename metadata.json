@@ -1,0 +1,8 @@
+{
+  "name": "Nexora POS",
+  "description": "Offline-capable retail point of sale system with inventory, receipt printing, sales analytics, and staff settings.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
