@@ -1,5 +1,5 @@
 'use client';
-
+import { createProductApi } from '@/lib/product-api';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MOCK_USERS } from '@/config/constants';
 import { can as canDo, type Permission } from '@/config/permissions';
@@ -130,7 +130,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return () => {
         try {
           ch.close();
-        } catch {}
+        } catch { }
         channelRef.current = null;
       };
     } catch {
@@ -195,7 +195,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return r;
     };
     return {
-      createProduct: (input) => run(() => commands.createProduct(input, actor)),
+      createProduct: async (input) => {
+        const saved = await createProductApi(input);
+
+        return run(() => commands.createProduct(input, actor, saved.id));
+      },
       updateProduct: (id, input) => run(() => commands.updateProduct(id, input, actor)),
       deleteProduct: (id) => run(() => commands.deleteProduct(id)),
       restock: (productId, quantity, note) => run(() => commands.adjustStock(productId, { kind: 'restock', quantity, note }, actor)),

@@ -116,7 +116,11 @@ const checkStock = (n: number) => {
   if (!Number.isInteger(n) || n < 0) throw new ValidationError('Stock must be a whole number, 0 or more.');
 };
 
-export async function createProduct(input: ProductInput, actor: Actor): Promise<Product> {
+export async function createProduct(
+  input: ProductInput,
+  actor: Actor,
+  productId?: string,
+): Promise<Product> {
   checkMoney(input.price, 'Price');
   checkMoney(input.cost, 'Cost');
   checkStock(input.stock);
@@ -125,7 +129,12 @@ export async function createProduct(input: ProductInput, actor: Actor): Promise<
   return transaction(['products', 'movements', 'syncQueue', 'meta'], 'readwrite', async (s) => {
     assertUnique(await s.products.getAll(), input);
     const at = nowIso();
-    const product: Product = { id: uid('prod'), ...input, createdAt: at, updatedAt: at };
+    const product: Product = {
+      id: productId ?? uid('prod'),
+      ...input,
+      createdAt: at,
+      updatedAt: at,
+    };
     await s.products.put(product);
     const device = await getDeviceId(s);
     const ops = [makeOp(device, 'product', 'create', product.id, `Create product ${product.name}`, product)];

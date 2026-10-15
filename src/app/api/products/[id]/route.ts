@@ -1,45 +1,27 @@
-
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import mongoose from "mongoose";
 
-const serializeProduct = (product: any) => ({
-  ...product,
-  id: product._id.toString(),
-  _id: product._id.toString(),
-  barcode: product.barcode ?? "",
-  imageUrl: product.imageUrl ?? "",
-  tone: product.tone ?? "blue",
-});
-
-const allowedFields = [
-  "name",
-  "sku",
-  "barcode",
-  "category",
-  "price",
-  "cost",
-  "stock",
-  "imageUrl",
-  "tone",
-] as const;
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteContext
 ) {
   try {
+    await connectDB();
+
     const { id } = await params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return NextResponse.json(
         { success: false, message: "Invalid product ID." },
         { status: 400 }
       );
     }
-
-    await connectDB();
 
     const product = await Product.findById(id).lean();
 
@@ -52,10 +34,18 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      product: serializeProduct(product),
+      product: {
+        ...product,
+        id: product._id.toString(),
+        _id: product._id.toString(),
+        barcode: product.barcode ?? "",
+        imageUrl: product.imageUrl ?? "",
+        tone: product.tone ?? "blue",
+      },
     });
   } catch (error) {
     console.error("Failed to fetch product:", error);
+
     return NextResponse.json(
       { success: false, message: "Failed to fetch product." },
       { status: 500 }
@@ -65,12 +55,14 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteContext
 ) {
   try {
+    await connectDB();
+
     const { id } = await params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return NextResponse.json(
         { success: false, message: "Invalid product ID." },
         { status: 400 }
@@ -78,63 +70,60 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const updates: Record<string, unknown> = {};
 
-    for (const field of allowedFields) {
-      if (Object.prototype.hasOwnProperty.call(body, field)) {
-        updates[field] = body[field];
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { success: false, message: "No valid fields provided." },
-        { status: 400 }
-      );
-    }
+    const {
+      name,
+      sku,
+      barcode = "",
+      category,
+      price,
+      cost,
+      stock,
+      imageUrl = "",
+      tone = "blue",
+    } = body;
 
     if (
-      ("name" in updates &&
-        (typeof updates.name !== "string" || !updates.name.trim())) ||
-      ("sku" in updates &&
-        (typeof updates.sku !== "string" || !updates.sku.trim())) ||
-      ("barcode" in updates && typeof updates.barcode !== "string") ||
-      ("category" in updates &&
-        (typeof updates.category !== "string" ||
-          !updates.category.trim())) ||
-      ("price" in updates &&
-        (typeof updates.price !== "number" ||
-          !Number.isFinite(updates.price) ||
-          updates.price < 0)) ||
-      ("cost" in updates &&
-        (typeof updates.cost !== "number" ||
-          !Number.isFinite(updates.cost) ||
-          updates.cost < 0)) ||
-      ("stock" in updates &&
-        (typeof updates.stock !== "number" ||
-          !Number.isInteger(updates.stock) ||
-          updates.stock < 0)) ||
-      ("imageUrl" in updates && typeof updates.imageUrl !== "string") ||
-      ("tone" in updates && typeof updates.tone !== "string")
+      typeof name !== "string" ||
+      !name.trim() ||
+      typeof sku !== "string" ||
+      !sku.trim() ||
+      typeof barcode !== "string" ||
+      typeof category !== "string" ||
+      !category.trim() ||
+      typeof price !== "number" ||
+      !Number.isFinite(price) ||
+      price < 0 ||
+      typeof cost !== "number" ||
+      !Number.isFinite(cost) ||
+      cost < 0 ||
+      typeof stock !== "number" ||
+      !Number.isInteger(stock) ||
+      stock < 0 ||
+      typeof imageUrl !== "string" ||
+      typeof tone !== "string"
     ) {
       return NextResponse.json(
-        { success: false, message: "Invalid product data." },
+        { success: false, message: "Provide valid product details." },
         { status: 400 }
       );
     }
 
-    for (const field of ["name", "sku", "category", "barcode", "imageUrl", "tone"]) {
-      if (typeof updates[field] === "string") {
-        updates[field] = (updates[field] as string).trim();
-      }
-    }
-
-    await connectDB();
-
-    const product = await Product.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    }).lean();
+    const product = await Product.findByIdAndUpdate(
+      id,
+      {
+        name: name.trim(),
+        sku: sku.trim(),
+        barcode: barcode.trim(),
+        category: category.trim(),
+        price,
+        cost,
+        stock,
+        imageUrl: imageUrl.trim(),
+        tone: tone.trim(),
+      },
+      { new: true, runValidators: true }
+    ).lean();
 
     if (!product) {
       return NextResponse.json(
@@ -145,8 +134,15 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: "Product updated successfully!",
-      product: serializeProduct(product),
+      message: "Product updated successfully.",
+      product: {
+        ...product,
+        id: product._id.toString(),
+        _id: product._id.toString(),
+        barcode: product.barcode ?? "",
+        imageUrl: product.imageUrl ?? "",
+        tone: product.tone ?? "blue",
+      },
     });
   } catch (error) {
     console.error("Failed to update product:", error);
@@ -172,19 +168,19 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteContext
 ) {
   try {
+    await connectDB();
+
     const { id } = await params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.isValidObjectId(id)) {
       return NextResponse.json(
         { success: false, message: "Invalid product ID." },
         { status: 400 }
       );
     }
-
-    await connectDB();
 
     const product = await Product.findByIdAndDelete(id);
 
@@ -197,8 +193,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: "Product deleted successfully!",
-      product: serializeProduct(product.toObject()),
+      message: "Product deleted successfully.",
     });
   } catch (error) {
     console.error("Failed to delete product:", error);
