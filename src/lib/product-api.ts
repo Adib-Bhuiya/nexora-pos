@@ -85,3 +85,28 @@ export async function deleteProductApi(id: string): Promise<void> {
 
   await readResponse<ProductResponse>(response);
 }
+
+export interface StockChange {
+  productId: string;
+  quantity: number;
+}
+
+export async function updateStockApi(
+  changes: StockChange[]
+): Promise<Product[]> {
+  const response = await fetch('/api/products/stock', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ changes }),
+  });
+
+  const data = await readResponse<{
+    success: boolean;
+    products?: Product[];
+    message?: string;
+  }>(response);
+
+  return data.products ?? [];
+}

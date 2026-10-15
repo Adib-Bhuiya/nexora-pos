@@ -1,5 +1,11 @@
 'use client';
-import { createProductApi } from '@/lib/product-api';
+import { cacheMongoProducts } from '@/db/product-cache';
+import {
+  fetchProducts,
+  createProductApi,
+  updateProductApi,
+  deleteProductApi,
+} from '@/lib/product-api';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MOCK_USERS } from '@/config/constants';
 import { can as canDo, type Permission } from '@/config/permissions';
@@ -85,6 +91,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const transport = useMemo(() => createSimulatedTransport({ shouldFail: () => failRef.current }), []);
 
   const refresh = useCallback(async () => {
+    try {
+      const mongoProducts = await fetchProducts();
+      await cacheMongoProducts(mongoProducts);
+    } catch (error) {
+      console.error(
+        'Could not refresh products from MongoDB:',
+        error
+      );
+    }
+
     setSnap(await loadSnapshot());
   }, []);
 
@@ -200,8 +216,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         return run(() => commands.createProduct(input, actor, saved.id));
       },
-      updateProduct: (id, input) => run(() => commands.updateProduct(id, input, actor)),
-      deleteProduct: (id) => run(() => commands.deleteProduct(id)),
+      updateProduct: async (id, input) => {
+        await updateProductApi(id, input);
+
+        return run(() =>
+          commands.updateProduct(id, input, actor)
+        );
+      },
+      deleteProduct: async (id) => {
+        await deleteProductApi(id);
+
+        return run(() =>
+          commands.deleteProduct(id)
+        );
+      },
       restock: (productId, quantity, note) => run(() => commands.adjustStock(productId, { kind: 'restock', quantity, note }, actor)),
       setStock: (productId, counted, note) => run(() => commands.adjustStock(productId, { kind: 'set', quantity: counted, note }, actor)),
       recordSale: (input) => run(() => commands.recordSale(input, actor, snap!.settings)),
