@@ -43,29 +43,28 @@ export const EMOJI_PRESETS: { emoji: string; tone: string }[] = [
 
 export const DEFAULT_EMOJI = EMOJI_PRESETS[EMOJI_PRESETS.length - 1];
 
-/** Demo identities. Role switching is a UI demonstration only — it is not security. */
+/** Staff profiles for role-based permissions in the POS interface. */
 export const MOCK_USERS: User[] = [
-  { id: 'u-admin', name: 'Adib', role: 'admin', initials: 'AD' },
-  { id: 'u-cash-1', name: 'Rafi Hasan', role: 'cashier', initials: 'RH' },
-  { id: 'u-cash-2', name: 'Nusrat Jahan', role: 'cashier', initials: 'NJ' },
+  { id: 'u-admin', name: 'Administrator', role: 'admin', initials: 'AD' },
+  { id: 'u-cash-1', name: 'Cashier', role: 'cashier', initials: 'CA' },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
-  storeName: 'Nexora Retail Store',
-  address: '12 Market Road, Dhaka 1205',
-  phone: '+880 1700 000000',
-  email: 'store@example.com',
+  storeName: 'Nexora POS',
+  address: '',
+  phone: '',
+  email: '',
   taxId: '',
-  currencyCode: 'BDT',
+  currencyCode: 'USD',
   taxEnabled: false,
-  taxLabel: 'VAT',
-  taxRate: 5,
+  taxLabel: 'Tax',
+  taxRate: 0,
   taxInclusive: false,
   receiptPrefix: 'NX',
   receiptHeader: '',
-  receiptFooter: 'Thank you for shopping with us!',
+  receiptFooter: 'Thank you for your business!',
   receiptShowCashier: true,
-  receiptShowTaxId: true,
+  receiptShowTaxId: false,
   receiptPaper: '80mm',
   autoPrint: false,
   lowStockThreshold: 5,

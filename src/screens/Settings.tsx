@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, CircleX, Download, Plus, RefreshCw, ShieldAlert, X } from 'lucide-react';
+import { Check, CircleX, Download, Plus, Receipt as ReceiptIcon, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import { Receipt } from '@/components/receipt/Receipt';
 import { Button } from '@/components/ui/Button';
-import { Card, CardHead, Notice, PageHeader } from '@/components/ui/Card';
+import { Card, CardHead, EmptyState, Notice, PageHeader } from '@/components/ui/Card';
 import { ConfirmDialog } from '@/components/ui/Dialog';
 import { Input, Segmented, SelectField, SwitchRow, TextAreaField, TextField } from '@/components/ui/Fields';
 import { Avatar, StatusPill, TableWrap, Td, Th } from '@/components/ui/Bits';
@@ -75,26 +75,47 @@ export default function SettingsPage() {
     set('categories', draft.categories.filter((x) => x !== c));
   };
 
-  const sampleSale: Sale = {
-    id: 'TXN-SAMPLE01', receipt: `${draft.receiptPrefix || 'NX'}-00042`, time: new Date().toISOString(), cashierId: user.id, cashierName: user.name, method: 'Cash',
-    items: [{ productId: 'a', name: 'Premium Rice 1kg', sku: 'GR-1001', qty: 2, price: 85, cost: 70 }, { productId: 'b', name: 'Mineral Water', sku: 'BV-2001', qty: 1, price: 20, cost: 13 }],
-    subtotal: 190, discountType: 'fixed', discountValue: 0, discount: 0, taxLabel: draft.taxLabel, taxRate: Number(draft.taxRate) || 0, taxInclusive: draft.taxInclusive, tax: 0, total: 190, tendered: 200, change: 10, syncStatus: 'pending',
-  };
+  const previewSale: Sale | null = useMemo(() => {
+    const p = products[0];
+    if (!p) return null;
+    const previewItem = { productId: p.id, name: p.name, sku: p.sku, qty: 1, price: p.price, cost: p.cost };
+    const sub = previewItem.price * previewItem.qty;
+    return {
+      id: 'TXN-00001',
+      receipt: `${draft.receiptPrefix || 'NX'}-00001`,
+      time: new Date().toISOString(),
+      cashierId: user.id,
+      cashierName: user.name,
+      method: 'Cash',
+      items: [previewItem],
+      subtotal: sub,
+      discountType: 'fixed',
+      discountValue: 0,
+      discount: 0,
+      taxLabel: draft.taxLabel,
+      taxRate: Number(draft.taxRate) || 0,
+      taxInclusive: draft.taxInclusive,
+      tax: 0,
+      total: sub,
+      tendered: sub,
+      change: 0,
+      syncStatus: 'pending',
+    };
+  }, [products, draft.receiptPrefix, draft.taxLabel, draft.taxRate, draft.taxInclusive, user.id, user.name]);
   const previewSettings: SettingsType = { ...draft, taxRate: Number(draft.taxRate) || 0, lowStockThreshold: Number(draft.lowStockThreshold) || 0 };
 
   return (
     <>
-      <PageHeader eyebrow="ADMINISTRATION" title="Staff & settings" sub="Switch demo roles and configure the store." />
+      <PageHeader eyebrow="ADMINISTRATION" title="Staff & settings" sub="Configure store settings and test staff roles." />
 
       <div className="grid gap-[18px] lg:grid-cols-2">
-        {/* ---------- demo roles ---------- */}
+        {/* ---------- staff roles ---------- */}
         <Card className="p-[19px] max-md:p-3.5 lg:col-span-2">
-          <CardHead title="Demo staff" sub="Pick who you’re using the app as." />
-          <Notice tone="warn" icon={<ShieldAlert size={15} />}>
-            <strong>Frontend demonstration only.</strong> These are mock users and roles. Hiding screens in the browser is <strong>not security</strong>: anyone with dev-tools can
-            bypass it, and all data lives in this browser. Real access control must be enforced by a server when a backend is added.
+          <CardHead title="Staff profiles" sub="Select an active operator profile to test role permissions." />
+          <Notice tone="info" icon={<ShieldAlert size={15} />}>
+            <strong>Staff Role Switcher</strong>: Select an active operator profile to test role-based access control (Administrator or Cashier) in the POS interface.
           </Notice>
-          <div className="mt-4 grid gap-2.5 md:grid-cols-3" role="radiogroup" aria-label="Demo user">
+          <div className="mt-4 grid gap-2.5 md:grid-cols-2" role="radiogroup" aria-label="Staff profile">
             {users.map((u) => {
               const active = u.id === user.id;
               return (
@@ -124,7 +145,7 @@ export default function SettingsPage() {
         </Card>
 
         {!canWrite && (
-          <div className="lg:col-span-2"><Notice tone="info">Only administrators can change store settings. Switch to <b>Adib (Administrator)</b> above to edit them.</Notice></div>
+          <div className="lg:col-span-2"><Notice tone="info">Only administrators can change store settings. Switch to <b>Administrator</b> above to edit them.</Notice></div>
         )}
 
         <fieldset disabled={!canWrite || busy} className="contents">
@@ -184,8 +205,16 @@ export default function SettingsPage() {
           </Card>
 
           <Card className="p-[19px] max-md:p-3.5">
-            <CardHead title="Receipt preview" sub="Updates as you type." />
-            <Receipt sale={sampleSale} settings={previewSettings} />
+            <CardHead title="Receipt preview" sub={previewSale ? 'Updates as you type.' : 'Live layout preview.'} />
+            {previewSale ? (
+              <Receipt sale={previewSale} settings={previewSettings} />
+            ) : (
+              <EmptyState
+                icon={<ReceiptIcon size={20} />}
+                title="No products in catalog"
+                text="Add products to your catalog to generate a live receipt preview."
+              />
+            )}
           </Card>
 
           <Card className="p-[19px] max-md:p-3.5">
@@ -228,18 +257,9 @@ export default function SettingsPage() {
         )}
 
         <AppCard />
-        <DataCard canWrite={canWrite} onReset={() => setConfirm('reset')} onClear={() => setConfirm('clear')} />
+        <DataCard canWrite={canWrite} onClear={() => setConfirm('clear')} />
       </div>
 
-      <ConfirmDialog
-        open={confirm === 'reset'}
-        title="Reset demo data?"
-        tone="danger"
-        confirmLabel="Reset demo data"
-        onClose={() => setConfirm(null)}
-        onConfirm={async () => { await actions.resetDemo(); setConfirm(null); notify('Demo data restored.', { tone: 'success' }); }}
-        message="This replaces all products, sales, stock history and the sync queue with fresh sample data. Your store settings are kept."
-      />
       <ConfirmDialog
         open={confirm === 'clear'}
         title="Delete all data?"
@@ -293,7 +313,7 @@ function AppCard() {
   );
 }
 
-function DataCard({ canWrite, onReset, onClear }: { canWrite: boolean; onReset: () => void; onClear: () => void }) {
+function DataCard({ canWrite, onClear }: { canWrite: boolean; onClear: () => void }) {
   const { notify } = useToast();
   const backup = async () => {
     try {
@@ -308,12 +328,9 @@ function DataCard({ canWrite, onReset, onClear }: { canWrite: boolean; onReset: 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3"><div><div className="text-xs font-bold">Download a backup</div><div className="text-[11px] text-muted">Everything as a JSON file.</div></div><Button onClick={() => void backup()}><Download size={14} aria-hidden /> Export</Button></div>
         {canWrite ? (
-          <>
-            <div className="flex items-center justify-between gap-3 border-t border-[#edf0f4] pt-3"><div><div className="text-xs font-bold">Reset demo data</div><div className="text-[11px] text-muted">Restore the sample products and sales.</div></div><Button variant="danger" onClick={onReset}>Reset</Button></div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#edf0f4] pt-3"><div><div className="text-xs font-bold">Start with an empty store</div><div className="text-[11px] text-muted">Delete all products and sales.</div></div><Button variant="danger" onClick={onClear}>Delete all</Button></div>
-          </>
+          <div className="flex items-center justify-between gap-3 border-t border-[#edf0f4] pt-3"><div><div className="text-xs font-bold">Start with an empty store</div><div className="text-[11px] text-muted">Delete all products and sales.</div></div><Button variant="danger" onClick={onClear}>Delete all</Button></div>
         ) : (
-          <p className="border-t border-[#edf0f4] pt-3 text-[11px] text-muted">Resetting or deleting data is limited to the Administrator role.</p>
+          <p className="border-t border-[#edf0f4] pt-3 text-[11px] text-muted">Deleting data is limited to the Administrator role.</p>
         )}
       </div>
     </Card>

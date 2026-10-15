@@ -4,7 +4,7 @@ import { ValidationError } from '@/lib/validation';
 import { createSimulatedTransport, runSync, clearSyncHistory } from '@/services/sync';
 import { adjustStock, createProduct, deleteProduct, recordSale, saveSettings, updateProduct, type Actor } from './commands';
 import { closeDb } from './idb';
-import { buildDemoData, clearAllData, ensureInitialized, seedDemo } from './seed';
+import { buildDemoData, clearAllData, ensureInitialized } from './seed';
 import { exportAll, loadSnapshot } from './snapshot';
 
 const actor: Actor = { id: 'u-admin', name: 'Adib' };
@@ -30,38 +30,33 @@ beforeEach(async () => {
 });
 
 describe('first run', () => {
-  it('seeds demo data once and keeps it across reloads', async () => {
+  it('initializes an empty store and keeps it across reloads', async () => {
     await ensureInitialized();
     const a = await loadSnapshot();
-    expect(a.products).toHaveLength(8);
-    expect(a.sales.length).toBeGreaterThan(50);
+    expect(a.products).toHaveLength(0);
+    expect(a.sales).toHaveLength(0);
     expect(a.deviceId).toMatch(/^device_/);
     await ensureInitialized();
     const b = await loadSnapshot();
-    expect(b.sales).toHaveLength(a.sales.length);
+    expect(b.sales).toHaveLength(0);
     expect(b.deviceId).toBe(a.deviceId);
   });
 
-  it('demo history adds up: every product ends at its stock and no balance is negative', () => {
-    const d = buildDemoData(new Date(2026, 9, 12, 15, 0));
-    for (const p of d.products) {
-      const mv = d.movements.filter((m) => m.productId === p.id);
-      expect(mv.reduce((n, m) => n + m.change, 0)).toBe(p.stock);
-      expect(mv.every((m) => m.balanceAfter >= 0)).toBe(true);
-      expect(mv.at(-1)?.balanceAfter).toBe(p.stock);
-    }
-    expect(d.products.map((p) => p.stock)).toEqual([18, 4, 35, 26, 12, 3, 20, 11]);
+  it('buildDemoData returns clean empty collections', () => {
+    const d = buildDemoData();
+    expect(d.products).toHaveLength(0);
+    expect(d.sales).toHaveLength(0);
+    expect(d.movements).toHaveLength(0);
+    expect(d.nextReceiptSeq).toBe(1);
   });
 
-  it('can reset to demo data and clear to an empty store', async () => {
+  it('can clear to an empty store', async () => {
     await ensureInitialized();
     await clearAllData();
-    let s = await loadSnapshot();
+    const s = await loadSnapshot();
     expect(s.products).toHaveLength(0);
     expect(s.sales).toHaveLength(0);
-    await seedDemo();
-    s = await loadSnapshot();
-    expect(s.products).toHaveLength(8);
+    expect(s.movements).toHaveLength(0);
   });
 });
 

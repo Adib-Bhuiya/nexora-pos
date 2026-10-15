@@ -42,9 +42,8 @@ export function SyncCenter({ open, onClose }: { open: boolean; onClose: () => vo
         </>
       }
     >
-      <Notice tone="warn" icon={<CloudOff size={15} />}>
-        <strong>Demonstration only.</strong> No server is connected, so “syncing” just marks changes as done on this device. Nothing leaves your browser and
-        other devices can’t see this data. The queue is the hook a real backend would plug into.
+      <Notice tone="info" icon={<CloudOff size={15} />}>
+        <strong>Local Queue</strong>: All changes are saved locally to this browser’s IndexedDB. Changes are queued here and ready to synchronize whenever a backend server is connected.
       </Notice>
 
       <div className="mt-4 grid grid-cols-3 gap-2.5">
@@ -132,7 +131,7 @@ function OpRow({ op, open, onToggle, time }: { op: SyncOperation; open: boolean;
           </div>
           {op.lastError && op.status === 'failed' && <div className="mt-0.5 text-[11px] text-danger">{op.lastError}</div>}
         </div>
-        <StatusPill tone={op.status === 'pending' ? 'low' : op.status === 'failed' ? 'out' : 'good'}>{op.status === 'pending' ? 'Waiting' : op.status === 'failed' ? 'Failed' : 'Synced (demo)'}</StatusPill>
+        <StatusPill tone={op.status === 'pending' ? 'low' : op.status === 'failed' ? 'out' : 'good'}>{op.status === 'pending' ? 'Waiting' : op.status === 'failed' ? 'Failed' : 'Synced'}</StatusPill>
         <ChevronDown size={16} className={cn('shrink-0 text-muted transition-transform duration-150', open && 'rotate-180')} aria-hidden />
       </button>
       {open && (

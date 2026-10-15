@@ -1,6 +1,6 @@
 export type Role = 'admin' | 'cashier';
 
-/** Mock user for the frontend role-switching demo. NOT real authentication. */
+/** Staff user for frontend role-based permissions. */
 export interface User {
   id: string;
   name: string;

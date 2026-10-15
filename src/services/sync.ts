@@ -36,7 +36,7 @@ export function createSimulatedTransport(
       return ops.map((o) => ({
         id: o.id,
         ok: !fail,
-        error: fail ? 'Simulated server error (demo)' : undefined,
+        error: fail ? 'Simulated server error' : undefined,
       }));
     },
   };

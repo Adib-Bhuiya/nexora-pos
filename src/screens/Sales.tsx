@@ -99,7 +99,7 @@ export default function Sales() {
             <Select value={sync} onChange={(e) => setSync(e.target.value as 'all' | SyncStatus)} aria-label="Filter by sync status" className="md:max-w-[170px]">
               <option value="all">Any sync status</option>
               <option value="pending">Pending sync</option>
-              <option value="synced">Synced (demo)</option>
+              <option value="synced">Synced</option>
             </Select>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
@@ -119,7 +119,11 @@ export default function Sales() {
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState icon={<ReceiptIcon size={20} />} title={mine.length ? 'No sales match these filters' : 'No sales yet'} text={mine.length ? 'Try widening the date range or clearing filters.' : 'Completed sales will be listed here.'} />
+          <EmptyState
+            icon={<ReceiptIcon size={20} />}
+            title={mine.length ? 'No sales match these filters' : 'No transactions recorded'}
+            text={mine.length ? 'Try widening the date range or clearing filters.' : 'Completed sales will be listed here.'}
+          />
         ) : (
           <>
             <TableWrap>

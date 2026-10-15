@@ -41,12 +41,28 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 export function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') {
+    if (typeof indexedDB === 'undefined' || !indexedDB) {
       dbPromise = null;
       reject(new Error('IndexedDB is not available in this browser or browsing mode.'));
       return;
     }
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+    let req: IDBOpenDBRequest;
+    try {
+      req = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (e) {
+      dbPromise = null;
+      reject(e instanceof Error ? e : new Error('Failed to open local database.'));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (dbPromise) {
+        dbPromise = null;
+        reject(new Error('Connecting to local database timed out.'));
+      }
+    }, 8000);
+
     req.onupgradeneeded = () => {
       // Schema v1. Future versions: branch on event.oldVersion and migrate in place.
       const db = req.result;
@@ -61,7 +77,20 @@ export function openDb(): Promise<IDBDatabase> {
       q.createIndex('createdAt', 'createdAt');
       db.createObjectStore('meta', { keyPath: 'key' });
     };
+
+    req.onblocked = () => {
+      console.warn('IndexedDB database open was blocked.');
+      setTimeout(() => {
+        if (dbPromise) {
+          clearTimeout(timer);
+          dbPromise = null;
+          reject(new Error('Database open blocked by another tab or connection.'));
+        }
+      }, 3000);
+    };
+
     req.onsuccess = () => {
+      clearTimeout(timer);
       const db = req.result;
       // Another tab is upgrading the schema: release our connection.
       db.onversionchange = () => {
@@ -70,7 +99,9 @@ export function openDb(): Promise<IDBDatabase> {
       };
       resolve(db);
     };
+
     req.onerror = () => {
+      clearTimeout(timer);
       dbPromise = null;
       reject(req.error ?? new Error('Could not open the local database.'));
     };
@@ -123,17 +154,41 @@ export async function transaction<T>(
 ): Promise<T> {
   const db = await openDb();
   return new Promise<T>((resolve, reject) => {
+    let failed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+    };
+
+    timer = setTimeout(() => {
+      if (!failed) {
+        failed = true;
+        try {
+          tx.abort();
+        } catch {
+          /* already finished */
+        }
+        reject(new Error('Database transaction timed out.'));
+      }
+    }, 15000);
+
     const tx = db.transaction(names, mode);
     const stores = {} as Record<string, TxStore<unknown>>;
     for (const n of names) stores[n] = wrap(tx.objectStore(n));
     let result: T;
-    let failed = false;
-    tx.oncomplete = () => resolve(result);
+
+    tx.oncomplete = () => {
+      cleanup();
+      resolve(result);
+    };
     tx.onerror = () => {
+      cleanup();
       failed = true;
       reject(tx.error ?? new Error('Database transaction failed.'));
     };
     tx.onabort = () => {
+      cleanup();
       failed = true;
       reject(tx.error ?? new Error('Database transaction was cancelled.'));
     };
@@ -143,6 +198,7 @@ export async function transaction<T>(
       },
       (err) => {
         if (!failed) {
+          cleanup();
           failed = true;
           try {
             tx.abort();

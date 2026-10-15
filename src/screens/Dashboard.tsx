@@ -23,7 +23,7 @@ export default function Dashboard() {
   const now = new Date();
   const viewAll = can('sales:viewAll');
 
-  // Cashiers see their own numbers only (UI demo — not a security boundary).
+  // Cashiers see their own transactions only.
   const mine = useMemo(() => (viewAll ? sales : sales.filter((s) => s.cashierId === user.id)), [sales, viewAll, user.id]);
   const today = useMemo(() => mine.filter((s) => dayKey(new Date(s.time)) === dayKey(now)), [mine, now.toDateString()]);
   const revenue = round2(today.reduce((n, s) => n + s.total, 0));
@@ -47,7 +47,7 @@ export default function Dashboard() {
         <MetricCard label={viewAll ? 'Today’s revenue' : 'Your revenue today'} value={f.whole(revenue)} foot={today.length ? `Across ${today.length} sale${today.length === 1 ? '' : 's'}` : 'No sales yet today'} />
         <MetricCard label="Transactions" value={f.number(today.length)} foot="Completed today" />
         <MetricCard label="Active products" value={f.number(products.length)} foot="In the catalog" />
-        <MetricCard label="Low stock" value={f.number(alerts.length)} foot={`At or below ${settings.lowStockThreshold} units`} tone={alerts.length ? 'warn' : undefined} />
+        <MetricCard label="Low stock" value={f.number(alerts.length)} foot={alerts.length ? `At or below ${settings.lowStockThreshold} units` : products.length === 0 ? 'No products yet' : 'All stock healthy'} tone={alerts.length ? 'warn' : undefined} />
       </section>
 
       <section className="mb-[18px] grid gap-[18px] lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.8fr)]">
@@ -58,7 +58,11 @@ export default function Dashboard() {
         <Card className="p-[19px] max-md:p-3.5">
           <CardHead title="Inventory alerts" sub="Products that need attention" right={<Link href="/inventory" className={buttonClasses('secondary', 'sm')}>View</Link>} />
           {alerts.length === 0 ? (
-            <EmptyState title="Stock levels look healthy" text="Nothing is at or below the low-stock threshold." />
+            <EmptyState
+              title={products.length === 0 ? 'No products in catalog' : 'Stock levels look healthy'}
+              text={products.length === 0 ? 'Add products to track inventory levels and stock warnings.' : 'Nothing is at or below the low-stock threshold.'}
+              action={products.length === 0 ? <Link href="/products" className={buttonClasses('secondary', 'sm')}><Plus size={13} aria-hidden /> Add product</Link> : undefined}
+            />
           ) : (
             <ul className="divide-y divide-[#edf0f4]">
               {alerts.slice(0, 6).map((p) => (
@@ -78,7 +82,7 @@ export default function Dashboard() {
       <Card className="overflow-hidden">
         <TableTitle title="Recent transactions" right={<Link href="/sales" className={buttonClasses('secondary', 'sm')}>All sales</Link>} />
         {mine.length === 0 ? (
-          <EmptyState title="No sales yet" text="Completed sales will show up here." action={<Link href="/checkout" className={buttonClasses('primary')}>Start a sale</Link>} />
+          <EmptyState title="No transactions recorded" text="Completed sales will show up here." action={<Link href="/checkout" className={buttonClasses('primary')}><Plus size={14} aria-hidden /> Start a sale</Link>} />
         ) : (
           <TableWrap>
             <thead>

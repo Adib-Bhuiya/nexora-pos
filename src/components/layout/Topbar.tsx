@@ -103,12 +103,12 @@ function UserMenu() {
         <span className="hidden rounded-full bg-[#eef1f6] px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">{user.role === 'admin' ? 'Admin' : 'Cashier'}</span>
       </button>
       {open && (
-        <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[290px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
+        <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[280px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
           <div className="px-2.5 pb-2 pt-1.5">
             <div className="text-[13px] font-extrabold">{user.name}</div>
-            <div className="text-[11px] text-muted">{ROLE_LABEL[user.role]} · demo profile</div>
+            <div className="text-[11px] text-muted">{ROLE_LABEL[user.role]}</div>
           </div>
-          <div className="px-2.5 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[1.2px] text-[#8993a4]">Switch demo user</div>
+          <div className="px-2.5 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[1.2px] text-[#8993a4]">Switch profile</div>
           {users.map((u) => (
             <button
               key={u.id}
@@ -132,7 +132,7 @@ function UserMenu() {
               {u.id === user.id && <Check size={15} className="text-brand" />}
             </button>
           ))}
-          <p className="mx-2.5 my-2 text-[10px] leading-[1.5] text-muted">Role switching is a UI demonstration only. It does not provide real security.</p>
+          <div className="my-1 border-t border-line" />
           <Link href="/settings" onClick={() => setOpen(false)} role="menuitem" className="flex items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-[#394356] hover:bg-[#eef1f6]">
             <SettingsIcon size={14} /> Staff &amp; settings
           </Link>

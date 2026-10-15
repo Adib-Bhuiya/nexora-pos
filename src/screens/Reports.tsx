@@ -87,7 +87,7 @@ export default function Reports() {
         <Card className="p-[19px] max-md:p-3.5">
           <CardHead title="Payment methods" sub={`Share of revenue, last ${periodWord}`} />
           {totals.orders === 0 ? (
-            <EmptyState title="No sales in this period" />
+            <EmptyState title="No sales in this period" text="Payment breakdown by method will appear as sales are recorded." />
           ) : (
             <div className="space-y-4">
               {pay.map((p) => (
@@ -107,7 +107,7 @@ export default function Reports() {
         <Card className="p-[19px] max-md:p-3.5">
           <CardHead title="Best-selling products" sub="By units sold" />
           {top.length === 0 ? (
-            <EmptyState title="No sales in this period" />
+            <EmptyState title="No sales in this period" text="Top products by units sold will be ranked here." />
           ) : (
             <>
               <div role="img" aria-label={`Top seller: ${top[0].name}, ${top[0].units} units`} style={{ height: Math.max(180, top.length * 34) }}>
@@ -128,7 +128,7 @@ export default function Reports() {
         </Card>
         <Card className="overflow-hidden">
           <TableTitle title="Top products" />
-          {top.length === 0 ? <EmptyState title="Nothing to rank yet" /> : (
+          {top.length === 0 ? <EmptyState title="Nothing to rank yet" text="Product sales rankings will appear once items are purchased." /> : (
             <TableWrap>
               <thead><tr><Th>#</Th><Th>Product</Th><Th align="right">Units</Th><Th align="right">Revenue</Th><Th align="right">Profit</Th></tr></thead>
               <tbody>
@@ -142,21 +142,25 @@ export default function Reports() {
       </section>
 
       <Card className="mb-[18px] overflow-hidden">
-        <TableTitle title={mode === 'daily' ? 'Daily summary' : 'Monthly summary'} right={<Button size="sm" onClick={exportSummary}><Download size={13} aria-hidden /> CSV</Button>} />
-        <TableWrap>
-          <thead><tr><Th>{mode === 'daily' ? 'Day' : 'Month'}</Th><Th align="right">Orders</Th><Th align="right">Units</Th><Th align="right">Revenue</Th><Th align="right">Discounts</Th><Th align="right">Tax</Th><Th align="right">Gross profit</Th></tr></thead>
-          <tbody>
-            {[...rows].reverse().map((r) => (
-              <tr key={r.key}><Td className="font-bold text-ink">{r.label}</Td><Td align="right">{r.orders}</Td><Td align="right">{r.units}</Td><Td align="right" className="font-bold text-ink">{f.money(r.revenue)}</Td><Td align="right">{f.money(r.discount)}</Td><Td align="right">{f.money(r.tax)}</Td><Td align="right">{f.money(r.profit)}</Td></tr>
-            ))}
-            <tr className="bg-[#fafbfd] font-extrabold"><Td className="text-ink">Total</Td><Td align="right">{totals.orders}</Td><Td align="right">{totals.units}</Td><Td align="right" className="text-ink">{f.money(totals.revenue)}</Td><Td align="right">{f.money(totals.discount)}</Td><Td align="right">{f.money(totals.tax)}</Td><Td align="right">{f.money(totals.profit)}</Td></tr>
-          </tbody>
-        </TableWrap>
+        <TableTitle title={mode === 'daily' ? 'Daily summary' : 'Monthly summary'} right={<Button size="sm" onClick={exportSummary} disabled={totals.orders === 0}><Download size={13} aria-hidden /> CSV</Button>} />
+        {totals.orders === 0 ? (
+          <EmptyState title="No transactions recorded" text="Daily order and revenue summaries will appear here once sales are completed." />
+        ) : (
+          <TableWrap>
+            <thead><tr><Th>{mode === 'daily' ? 'Day' : 'Month'}</Th><Th align="right">Orders</Th><Th align="right">Units</Th><Th align="right">Revenue</Th><Th align="right">Discounts</Th><Th align="right">Tax</Th><Th align="right">Gross profit</Th></tr></thead>
+            <tbody>
+              {[...rows].reverse().map((r) => (
+                <tr key={r.key}><Td className="font-bold text-ink">{r.label}</Td><Td align="right">{r.orders}</Td><Td align="right">{r.units}</Td><Td align="right" className="font-bold text-ink">{f.money(r.revenue)}</Td><Td align="right">{f.money(r.discount)}</Td><Td align="right">{f.money(r.tax)}</Td><Td align="right">{f.money(r.profit)}</Td></tr>
+              ))}
+              <tr className="bg-[#fafbfd] font-extrabold"><Td className="text-ink">Total</Td><Td align="right">{totals.orders}</Td><Td align="right">{totals.units}</Td><Td align="right" className="text-ink">{f.money(totals.revenue)}</Td><Td align="right">{f.money(totals.discount)}</Td><Td align="right">{f.money(totals.tax)}</Td><Td align="right">{f.money(totals.profit)}</Td></tr>
+            </tbody>
+          </TableWrap>
+        )}
       </Card>
 
       <section aria-label="Inventory report" className="grid gap-[18px] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card className="p-[19px] max-md:p-3.5">
-          <CardHead title="Inventory report" sub="Value of stock on hand" right={<Button size="sm" onClick={exportInventory}><Download size={13} aria-hidden /> CSV</Button>} />
+          <CardHead title="Inventory report" sub="Value of stock on hand" right={<Button size="sm" onClick={exportInventory} disabled={products.length === 0}><Download size={13} aria-hidden /> CSV</Button>} />
           <dl className="tabular space-y-2.5 text-xs">
             {[['Products', f.number(inv.products)], ['Units on hand', f.number(inv.units)], ['Stock value at cost', f.money(inv.costValue)], ['Stock value at retail', f.money(inv.retailValue)], ['Potential gross profit', f.money(inv.potentialProfit)]].map(([l, v]) => (
               <div key={l} className="flex justify-between border-b border-[#edf0f4] pb-2.5 last:border-0"><dt className="text-muted">{l}</dt><dd className="font-extrabold">{v}</dd></div>
@@ -165,7 +169,12 @@ export default function Reports() {
         </Card>
         <Card className="overflow-hidden">
           <TableTitle title="Needs restocking" />
-          {inv.low.length + inv.out.length === 0 ? <EmptyState title="Nothing needs restocking" text="All products are above the low-stock threshold." /> : (
+          {inv.low.length + inv.out.length === 0 ? (
+            <EmptyState
+              title={products.length === 0 ? 'No products registered' : 'Nothing needs restocking'}
+              text={products.length === 0 ? 'Add products to track inventory and restocking thresholds.' : 'All products are above the low-stock threshold.'}
+            />
+          ) : (
             <TableWrap>
               <thead><tr><Th>Product</Th><Th align="right">On hand</Th><Th>Status</Th></tr></thead>
               <tbody>

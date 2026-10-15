@@ -13,7 +13,7 @@ import type { Sale } from '@/types';
 import { Receipt } from './Receipt';
 
 export function SaleSyncPill({ sale }: { sale: Sale }) {
-  return <StatusPill tone={sale.syncStatus === 'synced' ? 'good' : 'low'}>{sale.syncStatus === 'synced' ? 'Synced (demo)' : 'Pending sync'}</StatusPill>;
+  return <StatusPill tone={sale.syncStatus === 'synced' ? 'good' : 'low'}>{sale.syncStatus === 'synced' ? 'Synced' : 'Pending sync'}</StatusPill>;
 }
 
 /** Sale details with a switch to the printable receipt. */

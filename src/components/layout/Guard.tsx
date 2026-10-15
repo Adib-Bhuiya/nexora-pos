@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/Card';
 import type { Permission } from '@/config/permissions';
 import { useStore } from '@/store/StoreProvider';
 
-/** Hides a page for roles without the permission. UI demo only — not real security. */
+/** Hides a page for roles without the permission. */
 export function Guard({ permission, children }: { permission: Permission; children: ReactNode }) {
   const { can, user } = useStore();
   if (can(permission)) return <>{children}</>;
@@ -16,7 +16,7 @@ export function Guard({ permission, children }: { permission: Permission; childr
     <EmptyState
       icon={<LockKeyhole size={20} />}
       title="Not available for this role"
-      text={`${user.name} (${user.role}) can’t open this page. This is a demo restriction in the interface, not real security.`}
+      text={`${user.name} (${user.role}) does not have permission to open this page.`}
       action={<Link href="/" className={buttonClasses('primary')}>Back to dashboard</Link>}
     />
   );

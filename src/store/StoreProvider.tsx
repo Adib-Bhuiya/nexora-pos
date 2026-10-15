@@ -96,12 +96,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const boot = useCallback(async () => {
     setBootError(null);
+    let finished = false;
+    const safetyTimer = setTimeout(() => {
+      if (!finished) {
+        setBootError('Opening local storage took too long. Click below to retry.');
+      }
+    }, 10000);
     try {
       await ensureInitialized();
       await refresh();
+      finished = true;
+      clearTimeout(safetyTimer);
       // Ask the browser not to evict our data under storage pressure.
       void navigator.storage?.persist?.().catch(() => undefined);
     } catch (e) {
+      finished = true;
+      clearTimeout(safetyTimer);
       setBootError(errorMessage(e));
     }
   }, [refresh]);
@@ -113,13 +123,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Keep several open tabs of the app consistent.
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
-    const ch = new BroadcastChannel('nexora-pos');
-    channelRef.current = ch;
-    ch.onmessage = () => void refresh().catch(() => undefined);
-    return () => {
-      ch.close();
-      channelRef.current = null;
-    };
+    try {
+      const ch = new BroadcastChannel('nexora-pos');
+      channelRef.current = ch;
+      ch.onmessage = () => void refresh().catch(() => undefined);
+      return () => {
+        try {
+          ch.close();
+        } catch {}
+        channelRef.current = null;
+      };
+    } catch {
+      // In restricted iframe contexts BroadcastChannel may throw SecurityError
+    }
   }, [refresh]);
 
   const queue = snap?.queue;

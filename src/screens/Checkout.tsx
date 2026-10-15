@@ -19,6 +19,9 @@ import { usePrint } from '@/store/PrintProvider';
 import { useStore, userMessage } from '@/store/StoreProvider';
 import type { PaymentMethod, Sale } from '@/types';
 
+import Link from 'next/link';
+import { buttonClasses } from '@/components/ui/Button';
+
 export default function Checkout() {
   const { products, settings } = useStore();
   const cart = useCart();
@@ -99,7 +102,14 @@ export default function Checkout() {
           </div>
 
           {products.length === 0 ? (
-            <Card><EmptyState icon={<PackageSearch size={20} />} title="No products yet" text="Add products on the Products page before you can sell." /></Card>
+            <Card>
+              <EmptyState
+                icon={<PackageSearch size={20} />}
+                title="No products yet"
+                text="Add products to your catalog before you can start selling."
+                action={<Link href="/products" className={buttonClasses('primary')}><Plus size={14} aria-hidden /> Add product</Link>}
+              />
+            </Card>
           ) : list.length === 0 ? (
             <Card><EmptyState icon={<Search size={20} />} title="No matching products" text="Try a different search or category." action={<Button onClick={() => { setQuery(''); setCategory('all'); }}>Clear filters</Button>} /></Card>
           ) : (
@@ -226,7 +236,7 @@ function CartPanel({ onCheckout }: { onCheckout: () => void }) {
           <Button variant="primary" className="mt-3.5 w-full !py-3 !text-[13px]" onClick={onCheckout} disabled={cart.lines.length === 0 || cart.hasIssues || t.total <= 0}>
             Complete sale · {f.money(t.total)}
           </Button>
-          <p className="mt-2.5 text-center text-[10px] text-muted">Demo only. No real payment is processed.</p>
+          <p className="mt-2.5 text-center text-[10px] text-muted">Transactions are saved locally on this device.</p>
         </div>
       </Card>
     </aside>
