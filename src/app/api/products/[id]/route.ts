@@ -12,8 +12,6 @@ export async function GET(
   { params }: RouteContext
 ) {
   try {
-    await connectDB();
-
     const { id } = await params;
 
     if (!mongoose.isValidObjectId(id)) {
@@ -22,6 +20,8 @@ export async function GET(
         { status: 400 }
       );
     }
+
+    await connectDB();
 
     const product = await Product.findById(id).lean();
 
@@ -58,8 +58,6 @@ export async function PATCH(
   { params }: RouteContext
 ) {
   try {
-    await connectDB();
-
     const { id } = await params;
 
     if (!mongoose.isValidObjectId(id)) {
@@ -69,7 +67,15 @@ export async function PATCH(
       );
     }
 
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
 
     const {
       name,
@@ -81,7 +87,7 @@ export async function PATCH(
       stock,
       imageUrl = "",
       tone = "blue",
-    } = body;
+    } = body ?? {};
 
     if (
       typeof name !== "string" ||
@@ -108,6 +114,8 @@ export async function PATCH(
         { status: 400 }
       );
     }
+
+    await connectDB();
 
     const product = await Product.findByIdAndUpdate(
       id,
@@ -171,8 +179,6 @@ export async function DELETE(
   { params }: RouteContext
 ) {
   try {
-    await connectDB();
-
     const { id } = await params;
 
     if (!mongoose.isValidObjectId(id)) {
@@ -181,6 +187,8 @@ export async function DELETE(
         { status: 400 }
       );
     }
+
+    await connectDB();
 
     const product = await Product.findByIdAndDelete(id);
 

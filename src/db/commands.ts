@@ -77,9 +77,10 @@ function movement(
   note: string,
   actor: Actor,
   reference?: string,
+  movementId?: string,
 ): StockMovement {
   return {
-    id: uid('mv'),
+    id: movementId ?? uid('mv'),
     seq: 0, // assigned in saveMovement()
     productId: p.id,
     productName: p.name,
@@ -188,7 +189,12 @@ export type StockAdjustment =
   /** `quantity` is the NEW counted total. */
   | { kind: 'set'; quantity: number; note: string };
 
-export async function adjustStock(productId: string, adj: StockAdjustment, actor: Actor): Promise<StockMovement> {
+export async function adjustStock(
+  productId: string,
+  adj: StockAdjustment,
+  actor: Actor,
+  movementId?: string,
+): Promise<StockMovement> {
   if (!Number.isInteger(adj.quantity)) throw new ValidationError('Quantity must be a whole number.');
   if (adj.kind === 'restock' && adj.quantity < 1) throw new ValidationError('Restock quantity must be at least 1.');
   if (adj.kind === 'set' && adj.quantity < 0) throw new ValidationError('Counted quantity cannot be negative.');
@@ -208,6 +214,8 @@ export async function adjustStock(productId: string, adj: StockAdjustment, actor
       next,
       adj.note.trim() || (adj.kind === 'restock' ? 'Restock' : 'Stock adjustment'),
       actor,
+      undefined,
+      movementId,
     );
     await saveMovement(s, m);
     const device = await getDeviceId(s);
@@ -232,6 +240,7 @@ export async function recordSale(
   input: SaleInput,
   actor: Actor,
   settings: Pick<Settings, 'receiptPrefix' | 'taxEnabled' | 'taxLabel' | 'taxRate' | 'taxInclusive'>,
+  persistedSale?: { id: string; receipt: string; time?: string },
 ): Promise<Sale> {
   // Merge duplicate lines defensively.
   const wanted = new Map<string, number>();
@@ -273,15 +282,28 @@ export async function recordSale(
       change = changeDue(tendered, totals.total);
     }
 
-    const seqRec = await s.meta.get('receiptSeq');
-    const seq = typeof seqRec?.value === 'number' ? seqRec.value : 1;
-    await s.meta.put({ key: 'receiptSeq', value: seq + 1 });
+    let receipt: string;
+    let saleId: string;
+    let timeIso: string;
 
-    const at = new Date();
+    if (persistedSale) {
+      saleId = persistedSale.id;
+      receipt = persistedSale.receipt;
+      timeIso = persistedSale.time ?? nowIso();
+    } else {
+      const seqRec = await s.meta.get('receiptSeq');
+      const seq = typeof seqRec?.value === 'number' ? seqRec.value : 1;
+      await s.meta.put({ key: 'receiptSeq', value: seq + 1 });
+      const at = new Date();
+      saleId = txnId(at);
+      receipt = `${settings.receiptPrefix}-${String(seq).padStart(5, '0')}`;
+      timeIso = at.toISOString();
+    }
+
     const sale: Sale = {
-      id: txnId(at),
-      receipt: `${settings.receiptPrefix}-${String(seq).padStart(5, '0')}`,
-      time: at.toISOString(),
+      id: saleId,
+      receipt,
+      time: timeIso,
       cashierId: actor.id,
       cashierName: actor.name,
       method: input.method,
@@ -297,7 +319,7 @@ export async function recordSale(
       total: totals.total,
       tendered,
       change,
-      syncStatus: 'pending',
+      syncStatus: persistedSale ? 'synced' : 'pending',
     };
     await s.sales.put(sale);
 

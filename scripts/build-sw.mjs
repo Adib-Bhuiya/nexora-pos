@@ -6,8 +6,8 @@ import { join, relative, sep } from 'node:path';
 
 const OUT = 'out';
 if (!existsSync(OUT)) {
-  console.error('✗ "out/" not found. Run `next build` first (npm run build does both).');
-  process.exit(1);
+  console.log('ℹ Skipping out/sw.js: running in Next.js server mode with API routes (no static export directory "out").');
+  process.exit(0);
 }
 
 const INCLUDE = /\.(html|js|css|svg|png|ico|webmanifest|txt|json|woff2?)$/i;

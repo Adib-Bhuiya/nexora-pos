@@ -1,11 +1,20 @@
 'use client';
-import { cacheMongoProducts } from '@/db/product-cache';
+import {
+  cacheMongoProducts,
+  cacheMongoSales,
+  cacheMongoMovements,
+  cacheMongoSettings,
+} from '@/db/product-cache';
 import {
   fetchProducts,
   createProductApi,
   updateProductApi,
   deleteProductApi,
 } from '@/lib/product-api';
+import { fetchSales, recordSaleApi } from '@/lib/sales-api';
+import { fetchMovements, adjustStockApi } from '@/lib/movement-api';
+import { fetchSettings, saveSettingsApi } from '@/lib/settings-api';
+import { computeTotals, changeDue } from '@/lib/calc';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MOCK_USERS } from '@/config/constants';
 import { can as canDo, type Permission } from '@/config/permissions';
@@ -92,13 +101,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const mongoProducts = await fetchProducts();
-      await cacheMongoProducts(mongoProducts);
+      const [productsRes, salesRes, movementsRes, settingsRes] =
+        await Promise.allSettled([
+          fetchProducts(),
+          fetchSales(),
+          fetchMovements(),
+          fetchSettings(),
+        ]);
+
+      if (productsRes.status === 'fulfilled') {
+        await cacheMongoProducts(productsRes.value);
+      } else {
+        console.error('Could not refresh products from MongoDB:', productsRes.reason);
+      }
+
+      if (salesRes.status === 'fulfilled') {
+        await cacheMongoSales(salesRes.value);
+      } else {
+        console.error('Could not refresh sales from MongoDB:', salesRes.reason);
+      }
+
+      if (movementsRes.status === 'fulfilled') {
+        await cacheMongoMovements(movementsRes.value);
+      } else {
+        console.error('Could not refresh movements from MongoDB:', movementsRes.reason);
+      }
+
+      if (settingsRes.status === 'fulfilled') {
+        await cacheMongoSettings(settingsRes.value);
+      } else {
+        console.error('Could not refresh settings from MongoDB:', settingsRes.reason);
+      }
     } catch (error) {
-      console.error(
-        'Could not refresh products from MongoDB:',
-        error
-      );
+      console.error('Could not refresh data from MongoDB:', error);
     }
 
     setSnap(await loadSnapshot());
@@ -230,10 +265,74 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           commands.deleteProduct(id)
         );
       },
-      restock: (productId, quantity, note) => run(() => commands.adjustStock(productId, { kind: 'restock', quantity, note }, actor)),
-      setStock: (productId, counted, note) => run(() => commands.adjustStock(productId, { kind: 'set', quantity: counted, note }, actor)),
-      recordSale: (input) => run(() => commands.recordSale(input, actor, snap!.settings)),
-      saveSettings: (settings) => run(() => commands.saveSettings(settings)),
+      restock: async (productId, quantity, note) => {
+        const res = await adjustStockApi(productId, 'restock', quantity, note, actor.name);
+        return run(() => commands.adjustStock(productId, { kind: 'restock', quantity, note }, actor, res.movement.id));
+      },
+      setStock: async (productId, counted, note) => {
+        const res = await adjustStockApi(productId, 'set', counted, note, actor.name);
+        return run(() => commands.adjustStock(productId, { kind: 'set', quantity: counted, note }, actor, res.movement.id));
+      },
+      recordSale: async (input) => {
+        const items = input.lines.map((l) => {
+          const prod = snap?.products.find((p) => p.id === l.productId);
+          return {
+            productId: l.productId,
+            name: prod?.name ?? 'Unknown',
+            sku: prod?.sku ?? '',
+            qty: l.qty,
+            price: prod?.price ?? 0,
+            cost: prod?.cost ?? 0,
+          };
+        });
+
+        const totals = computeTotals(
+          items,
+          { type: input.discountType, value: input.discountValue },
+          {
+            enabled: snap!.settings.taxEnabled,
+            rate: snap!.settings.taxRate,
+            inclusive: snap!.settings.taxInclusive,
+          }
+        );
+
+        let tendered: number | undefined;
+        let change: number | undefined;
+        if (input.method === 'Cash') {
+          tendered = input.tendered ?? totals.total;
+          change = changeDue(tendered, totals.total);
+        }
+
+        const savedSale = await recordSaleApi({
+          items,
+          subtotal: totals.subtotal,
+          discountType: input.discountType,
+          discountValue: input.discountValue,
+          discount: totals.discount,
+          taxLabel: snap!.settings.taxEnabled ? snap!.settings.taxLabel : '',
+          taxRate: snap!.settings.taxEnabled ? snap!.settings.taxRate : 0,
+          taxInclusive: snap!.settings.taxEnabled ? snap!.settings.taxInclusive : false,
+          tax: totals.tax,
+          total: totals.total,
+          tendered,
+          change,
+          method: input.method,
+          cashierId: actor.id,
+          cashierName: actor.name,
+        });
+
+        return run(() =>
+          commands.recordSale(input, actor, snap!.settings, {
+            id: savedSale.id,
+            receipt: savedSale.receipt,
+            time: savedSale.time,
+          })
+        );
+      },
+      saveSettings: async (settings) => {
+        const saved = await saveSettingsApi(settings);
+        return run(() => commands.saveSettings(saved));
+      },
       switchUser: (id) => run(() => commands.setSessionUser(id)),
       resetDemo: () => run(() => seedDemo()),
       clearAll: () => run(() => clearAllData()),

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { connectDB } from "@/lib/mongodb";
+import { connectDB, withTransactionIfSupported } from "@/lib/mongodb";
 import Product from "@/models/Product";
 
 interface StockChange {
@@ -9,10 +9,17 @@ interface StockChange {
 }
 
 export async function PATCH(request: Request) {
-  const session = await mongoose.startSession();
-
   try {
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
+
     const changes: StockChange[] = body?.changes;
 
     if (
@@ -57,17 +64,41 @@ export async function PATCH(request: Request) {
     }
 
     await connectDB();
-    await session.withTransaction(async () => {
+    const productIds = [...combined.keys()];
+    const existingProducts = await Product.find({ _id: { $in: productIds } }).lean();
+    const productMap = new Map(existingProducts.map((p) => [p._id.toString(), p]));
+
+    for (const [productId, quantity] of combined) {
+      const p = productMap.get(productId);
+      if (!p) {
+        return NextResponse.json(
+          { success: false, message: `Product ${productId} does not exist.` },
+          { status: 404 }
+        );
+      }
+      if (quantity < 0 && p.stock < -quantity) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Product ${p.name || productId} has insufficient stock (available: ${p.stock}, requested: ${-quantity}).`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    await withTransactionIfSupported(async (session) => {
       for (const [productId, quantity] of combined) {
         const filter =
           quantity < 0
             ? { _id: productId, stock: { $gte: -quantity } }
             : { _id: productId };
 
+        const options = session ? { session } : {};
         const result = await Product.updateOne(
           filter,
           { $inc: { stock: quantity } },
-          { session }
+          options
         );
 
         if (result.matchedCount !== 1) {
@@ -81,7 +112,7 @@ export async function PATCH(request: Request) {
     });
 
     const products = await Product.find({
-      _id: { $in: [...combined.keys()] },
+      _id: { $in: productIds },
     }).lean();
 
     return NextResponse.json({
@@ -112,7 +143,5 @@ export async function PATCH(request: Request) {
         status: message.startsWith("Product ") ? 409 : 500,
       }
     );
-  } finally {
-    await session.endSession();
   }
 }

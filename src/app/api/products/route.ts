@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import StockMovement from "@/models/StockMovement";
 
 export async function GET() {
   try {
@@ -34,9 +35,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await connectDB();
-
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
 
     const {
       name,
@@ -48,7 +55,7 @@ export async function POST(request: Request) {
       stock,
       imageUrl = "",
       tone = "blue",
-    } = body;
+    } = body ?? {};
 
     if (
       typeof name !== "string" ||
@@ -79,6 +86,8 @@ export async function POST(request: Request) {
       );
     }
 
+    await connectDB();
+
     const product = await Product.create({
       name: name.trim(),
       sku: sku.trim(),
@@ -90,6 +99,24 @@ export async function POST(request: Request) {
       imageUrl: imageUrl.trim(),
       tone: tone.trim(),
     });
+
+    if (stock > 0) {
+      try {
+        await StockMovement.create({
+          productId: product._id.toString(),
+          productName: product.name,
+          sku: product.sku,
+          type: "initial",
+          change: stock,
+          balanceAfter: stock,
+          note: "Opening stock",
+          actorName: typeof body.actorName === "string" && body.actorName.trim() ? body.actorName.trim() : "Administrator",
+          time: new Date().toISOString(),
+        });
+      } catch (smError) {
+        console.error("Failed to record initial stock movement:", smError);
+      }
+    }
 
     return NextResponse.json(
       {

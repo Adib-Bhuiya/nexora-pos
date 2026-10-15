@@ -44,10 +44,9 @@ export async function ensureInitialized(): Promise<void> {
     if (!(await s.meta.get('mvSeq'))) await s.meta.put({ key: 'mvSeq', value: 0 });
     if (!(await s.settings.get('app'))) await s.settings.put({ key: 'app', value: DEFAULT_SETTINGS });
 
-    // Ensure any legacy demo data from prior runs is purged
+    // Mark initialized without deleting existing user data
     const cleaned = await s.meta.get('clean_v1');
     if (!cleaned) {
-      await Promise.all([s.products.clear(), s.sales.clear(), s.movements.clear(), s.syncQueue.clear()]);
       await s.meta.put({ key: 'clean_v1', value: true });
     }
     await s.meta.put({ key: 'seeded', value: true });
