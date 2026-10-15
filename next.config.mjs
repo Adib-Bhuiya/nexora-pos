@@ -5,8 +5,6 @@ const nextConfig = {
     'ais-dev-nsie6n6lp3v3dkzwqmnggy-790190637134.asia-southeast1.run.app',
   ],
 
-  // Export plain static files into ./out for deployment to a static host.
-  output: 'export',
 
   // Generate /checkout/index.html and similar static routes.
   trailingSlash: true,
