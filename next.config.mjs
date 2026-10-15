@@ -7,7 +7,7 @@ const nextConfig = {
 
 
   // Generate /checkout/index.html and similar static routes.
-  trailingSlash: true,
+  trailingSlash: false,
 
   // Allow images to work without the Next.js image optimization server.
   images: {
