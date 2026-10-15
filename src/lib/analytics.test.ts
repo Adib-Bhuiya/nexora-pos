@@ -1,3 +1,4 @@
+
 import { describe, expect, it } from 'vitest';
 import type { Sale } from '@/types';
 import { bestSellers, inventoryReport, paymentBreakdown, saleProfit, salesByDay, salesByMonth, sumRows } from './analytics';
@@ -59,7 +60,7 @@ describe('analytics', () => {
     expect(shares[1].total).toBe(0);
   });
   it('inventory report values stock and flags low/out', () => {
-    const p = (stock: number, id: string) => ({ id, name: id, sku: id, barcode: '', category: 'x', price: 10, cost: 6, stock, emoji: '', tone: '', createdAt: '', updatedAt: '' });
+    const p = (stock: number, id: string) => ({ id, name: id, sku: id, barcode: '', category: 'x', price: 10, cost: 6, stock, imageUrl: '', tone: '', createdAt: '', updatedAt: '' });
     const r = inventoryReport([p(0, 'a'), p(3, 'b'), p(20, 'c')], 5);
     expect(r).toMatchObject({ units: 23, costValue: 138, retailValue: 230, potentialProfit: 92 });
     expect(r.out).toHaveLength(1);

@@ -1,5 +1,5 @@
 'use client';
-
+import { Package } from 'lucide-react';
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from 'react';
 import type { StockStatus } from '@/types';
 import { cn } from '@/lib/cn';
@@ -20,10 +20,38 @@ export function StatusPill({ tone = 'neutral', children, className }: { tone?: T
 const STOCK_LABEL: Record<StockStatus, string> = { good: 'In stock', low: 'Low stock', out: 'Out of stock' };
 export const StockPill = ({ status }: { status: StockStatus }) => <StatusPill tone={status}>{STOCK_LABEL[status]}</StatusPill>;
 
-export function ProductThumb({ emoji, tone, size = 37 }: { emoji: string; tone: string; size?: number }) {
+
+export function ProductThumb({
+  imageUrl,
+  tone,
+  size = 37,
+}: {
+  imageUrl: string;
+  tone: string;
+  size?: number;
+}) {
   return (
-    <div className="grid shrink-0 place-items-center rounded-[10px]" style={{ width: size, height: size, background: tone, fontSize: size * 0.5 }} aria-hidden>
-      {emoji}
+    <div
+      className="grid shrink-0 place-items-center overflow-hidden rounded-[10px]"
+      style={{
+        width: size,
+        height: size,
+        background: tone || '#f3f4f6',
+      }}
+    >
+      {imageUrl?.trim() ? (
+        <img
+          src={imageUrl.trim()}
+          alt="Product"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <Package
+          size={size * 0.45}
+          className="text-gray-400"
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }

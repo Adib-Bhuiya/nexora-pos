@@ -110,7 +110,7 @@ export default function Products() {
                 <tr key={p.id} className="transition-colors duration-100 hover:bg-[#fafbfd]">
                   <Td>
                     <div className="flex items-center gap-3">
-                      <ProductThumb emoji={p.emoji} tone={p.tone} />
+                      <ProductThumb imageUrl={p.imageUrl} tone={p.tone} />
                       <div>
                         <div className="font-bold text-ink">{p.name}</div>
                         {p.barcode && <div className="font-mono text-[10px] text-muted">{p.barcode}</div>}

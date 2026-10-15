@@ -131,7 +131,7 @@ export default function Checkout() {
                     )}
                   >
                     {inCart > 0 && <span className="absolute right-2.5 top-2.5 grid h-[22px] min-w-[22px] place-items-center rounded-full bg-brand px-1.5 text-[11px] font-extrabold text-white">{inCart}</span>}
-                    <div className="mb-3 grid h-[78px] place-items-center rounded-xl text-[32px]" style={{ background: p.tone }} aria-hidden>{p.emoji}</div>
+                    <div className="mb-3 grid h-[78px] place-items-center rounded-xl text-[32px]" style={{ background: p.tone }} aria-hidden>{p.imageUrl}</div>
                     <div className="line-clamp-2 min-h-[34px] text-xs font-bold leading-[1.4]">{p.name}</div>
                     <div className="mt-1.5 flex items-center justify-between gap-1">
                       <span className="tabular text-[13px] font-extrabold text-brand">{f.money(p.price)}</span>
@@ -191,7 +191,11 @@ function CartPanel({ onCheckout }: { onCheckout: () => void }) {
             {cart.lines.map((l) => (
               <li key={l.product.id} className="py-3">
                 <div className="flex items-start gap-3">
-                  <ProductThumb emoji={l.product.emoji} tone={l.product.tone} size={34} />
+                  <ProductThumb
+                    imageUrl={l.product.imageUrl}
+                    tone={l.product.tone}
+                    size={34}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold leading-snug">{l.product.name}</div>
                     <div className="tabular text-[11px] text-muted">{f.money(l.product.price)} each</div>

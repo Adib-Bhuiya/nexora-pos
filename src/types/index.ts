@@ -20,7 +20,7 @@ export interface Product {
   price: number;
   cost: number;
   stock: number;
-  emoji: string;
+  imageUrl: string;
   tone: string;
   createdAt: string;
   updatedAt: string;
@@ -28,7 +28,7 @@ export interface Product {
 
 export type ProductInput = Pick<
   Product,
-  'name' | 'sku' | 'barcode' | 'category' | 'price' | 'cost' | 'stock' | 'emoji' | 'tone'
+  'name' | 'sku' | 'barcode' | 'category' | 'price' | 'cost' | 'stock' | 'imageUrl' | 'tone'
 >;
 
 export type MovementType = 'initial' | 'sale' | 'restock' | 'adjustment';

@@ -86,7 +86,7 @@ export default function Inventory() {
               <tbody>
                 {rows.map((p) => (
                   <tr key={p.id} className="hover:bg-[#fafbfd]">
-                    <Td><div className="flex items-center gap-3"><ProductThumb emoji={p.emoji} tone={p.tone} size={34} /><span className="font-bold text-ink">{p.name}</span></div></Td>
+                    <Td><div className="flex items-center gap-3"><ProductThumb imageUrl={p.imageUrl} tone={p.tone} size={34} /><span className="font-bold text-ink">{p.name}</span></div></Td>
                     <Td>{p.sku}</Td>
                     <Td align="right" className="text-[13px] font-extrabold text-ink">{p.stock}</Td>
                     <Td><StockPill status={stockStatus(p.stock, settings.lowStockThreshold)} /></Td>

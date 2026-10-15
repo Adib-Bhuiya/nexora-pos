@@ -4,8 +4,29 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 
+const serializeProduct = (product: any) => ({
+  ...product,
+  id: product._id.toString(),
+  _id: product._id.toString(),
+  barcode: product.barcode ?? "",
+  imageUrl: product.imageUrl ?? "",
+  tone: product.tone ?? "blue",
+});
+
+const allowedFields = [
+  "name",
+  "sku",
+  "barcode",
+  "category",
+  "price",
+  "cost",
+  "stock",
+  "imageUrl",
+  "tone",
+] as const;
+
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -20,7 +41,7 @@ export async function GET(
 
     await connectDB();
 
-    const product = await Product.findById(id);
+    const product = await Product.findById(id).lean();
 
     if (!product) {
       return NextResponse.json(
@@ -29,17 +50,18 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, product });
+    return NextResponse.json({
+      success: true,
+      product: serializeProduct(product),
+    });
   } catch (error) {
     console.error("Failed to fetch product:", error);
-
     return NextResponse.json(
       { success: false, message: "Failed to fetch product." },
       { status: 500 }
     );
   }
 }
-
 
 export async function PATCH(
   request: Request,
@@ -56,7 +78,6 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const allowedFields = ["name", "price", "stock", "category"];
     const updates: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
@@ -75,6 +96,9 @@ export async function PATCH(
     if (
       ("name" in updates &&
         (typeof updates.name !== "string" || !updates.name.trim())) ||
+      ("sku" in updates &&
+        (typeof updates.sku !== "string" || !updates.sku.trim())) ||
+      ("barcode" in updates && typeof updates.barcode !== "string") ||
       ("category" in updates &&
         (typeof updates.category !== "string" ||
           !updates.category.trim())) ||
@@ -82,10 +106,16 @@ export async function PATCH(
         (typeof updates.price !== "number" ||
           !Number.isFinite(updates.price) ||
           updates.price < 0)) ||
+      ("cost" in updates &&
+        (typeof updates.cost !== "number" ||
+          !Number.isFinite(updates.cost) ||
+          updates.cost < 0)) ||
       ("stock" in updates &&
         (typeof updates.stock !== "number" ||
           !Number.isInteger(updates.stock) ||
-          updates.stock < 0))
+          updates.stock < 0)) ||
+      ("imageUrl" in updates && typeof updates.imageUrl !== "string") ||
+      ("tone" in updates && typeof updates.tone !== "string")
     ) {
       return NextResponse.json(
         { success: false, message: "Invalid product data." },
@@ -93,12 +123,10 @@ export async function PATCH(
       );
     }
 
-    if (typeof updates.name === "string") {
-      updates.name = updates.name.trim();
-    }
-
-    if (typeof updates.category === "string") {
-      updates.category = updates.category.trim();
+    for (const field of ["name", "sku", "category", "barcode", "imageUrl", "tone"]) {
+      if (typeof updates[field] === "string") {
+        updates[field] = (updates[field] as string).trim();
+      }
     }
 
     await connectDB();
@@ -106,7 +134,7 @@ export async function PATCH(
     const product = await Product.findByIdAndUpdate(id, updates, {
       new: true,
       runValidators: true,
-    });
+    }).lean();
 
     if (!product) {
       return NextResponse.json(
@@ -118,10 +146,22 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       message: "Product updated successfully!",
-      product,
+      product: serializeProduct(product),
     });
   } catch (error) {
     console.error("Failed to update product:", error);
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === 11000
+    ) {
+      return NextResponse.json(
+        { success: false, message: "A product with this SKU or barcode already exists." },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json(
       { success: false, message: "Failed to update product." },
@@ -130,9 +170,8 @@ export async function PATCH(
   }
 }
 
-
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -159,7 +198,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       message: "Product deleted successfully!",
-      product,
+      product: serializeProduct(product.toObject()),
     });
   } catch (error) {
     console.error("Failed to delete product:", error);

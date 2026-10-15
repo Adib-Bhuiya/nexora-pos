@@ -1,5 +1,5 @@
 
-import mongoose, { Schema, models, model } from "mongoose";
+import { Schema, models, model } from 'mongoose';
 
 const ProductSchema = new Schema(
   {
@@ -8,7 +8,28 @@ const ProductSchema = new Schema(
       required: true,
       trim: true,
     },
+    sku: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+    },
+    barcode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    category: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    cost: {
       type: Number,
       required: true,
       min: 0,
@@ -19,10 +40,16 @@ const ProductSchema = new Schema(
       default: 0,
       min: 0,
     },
-    category: {
+
+    imageUrl: {
       type: String,
-      required: true,
+      default: '',
       trim: true,
+    },
+
+    tone: {
+      type: String,
+      default: 'blue',
     },
   },
   {
@@ -30,7 +57,15 @@ const ProductSchema = new Schema(
   }
 );
 
+ProductSchema.index(
+  { barcode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { barcode: { $gt: '' } },
+  }
+);
+
 const Product =
-  models.Product || model("Product", ProductSchema);
+  models.Product || model('Product', ProductSchema);
 
 export default Product;
