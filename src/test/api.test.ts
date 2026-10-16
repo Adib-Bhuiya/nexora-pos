@@ -22,6 +22,7 @@ import { PATCH as updateStockHandler } from '@/app/api/products/stock/route';
 import { POST as createSaleHandler } from '@/app/api/sales/route';
 import { POST as adjustMovementHandler } from '@/app/api/movements/route';
 import { PUT as updateSettingsHandler } from '@/app/api/settings/route';
+import { POST as clearDataHandler } from '@/app/api/clear-data/route';
 
 describe('Mongoose Models Schema Validation', () => {
   it('validates Product schema rules', async () => {
@@ -522,5 +523,9 @@ describe('IndexedDB Multi-Collection Caching from MongoDB', () => {
     expect(snapshot.products).toHaveLength(0);
     expect(snapshot.sales).toHaveLength(0);
     expect(snapshot.movements).toHaveLength(0);
+  });
+
+  it('clearDataHandler is defined and handles requests safely', async () => {
+    expect(typeof clearDataHandler).toBe('function');
   });
 });

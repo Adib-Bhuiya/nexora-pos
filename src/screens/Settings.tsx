@@ -265,9 +265,21 @@ export default function SettingsPage() {
         title="Delete all data?"
         tone="danger"
         confirmLabel="Delete everything"
+        busy={busy}
         onClose={() => setConfirm(null)}
-        onConfirm={async () => { await actions.clearAll(); setConfirm(null); notify('All products and sales deleted. You’re starting fresh.', { tone: 'success' }); }}
-        message="This permanently deletes every product, sale, stock movement and queued change stored in this browser. Export a backup first if you might need it. This can’t be undone."
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await actions.clearAll();
+            setConfirm(null);
+            notify('All products and sales deleted. You’re starting fresh.', { tone: 'success' });
+          } catch (e) {
+            notify(userMessage(e), { tone: 'error' });
+          } finally {
+            setBusy(false);
+          }
+        }}
+        message="This permanently deletes every product, sale, and stock movement in the database and local storage. Export a backup first if you might need it. This can’t be undone."
       />
     </>
   );
@@ -324,7 +336,7 @@ function DataCard({ canWrite, onClear }: { canWrite: boolean; onClear: () => voi
   };
   return (
     <Card className="p-[19px] max-md:p-3.5">
-      <CardHead title="Your data" sub="Stored only in this browser." />
+      <CardHead title="Your data" sub="Stored in database and locally cached." />
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3"><div><div className="text-xs font-bold">Download a backup</div><div className="text-[11px] text-muted">Everything as a JSON file.</div></div><Button onClick={() => void backup()}><Download size={14} aria-hidden /> Export</Button></div>
         {canWrite ? (

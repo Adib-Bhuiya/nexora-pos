@@ -14,6 +14,7 @@ import {
 import { fetchSales, recordSaleApi } from '@/lib/sales-api';
 import { fetchMovements, adjustStockApi } from '@/lib/movement-api';
 import { fetchSettings, saveSettingsApi } from '@/lib/settings-api';
+import { clearDatabaseApi } from '@/lib/database-api';
 import { computeTotals, changeDue } from '@/lib/calc';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MOCK_USERS } from '@/config/constants';
@@ -334,8 +335,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return run(() => commands.saveSettings(saved));
       },
       switchUser: (id) => run(() => commands.setSessionUser(id)),
-      resetDemo: () => run(() => seedDemo()),
-      clearAll: () => run(() => clearAllData()),
+      resetDemo: async () => {
+        await clearDatabaseApi({ resetSettings: true });
+        return run(() => seedDemo());
+      },
+      clearAll: async () => {
+        await clearDatabaseApi({ resetSettings: false });
+        return run(() => clearAllData());
+      },
     };
   }, [actor, changed, snap]);
 
