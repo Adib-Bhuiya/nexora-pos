@@ -11,10 +11,21 @@ import {
   updateProductApi,
   deleteProductApi,
 } from '@/lib/product-api';
-import { fetchSales, recordSaleApi } from '@/lib/sales-api';
+import { fetchSales, recordSaleApi, refundSaleApi } from '@/lib/sales-api';
 import { fetchMovements, adjustStockApi } from '@/lib/movement-api';
 import { fetchSettings, saveSettingsApi } from '@/lib/settings-api';
 import { clearDatabaseApi } from '@/lib/database-api';
+import {
+  fetchAuthStatus,
+  loginOwnerApi,
+  loginPinApi,
+  logoutApi,
+  fetchUsersApi,
+  createCashierApi,
+  updateUserApi,
+  deleteUserApi,
+  type UpdateUserInput,
+} from '@/lib/auth-api';
 import { computeTotals, changeDue } from '@/lib/calc';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MOCK_USERS } from '@/config/constants';
@@ -28,6 +39,7 @@ import { clearSyncHistory, createSimulatedTransport, runSync, type SyncSummary }
 import type { Product, ProductInput, Sale, Settings, StockMovement, SyncOperation, User } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 import { BootError, Splash } from '@/components/layout/Splash';
+import { InitialSetupModal } from '@/components/auth/InitialSetupModal';
 
 interface StoreActions {
   createProduct(input: ProductInput): Promise<Product>;
@@ -36,8 +48,16 @@ interface StoreActions {
   restock(productId: string, quantity: number, note: string): Promise<StockMovement>;
   setStock(productId: string, counted: number, note: string): Promise<StockMovement>;
   recordSale(input: commands.SaleInput): Promise<Sale>;
+  refundSale(saleId: string, reason: string, items?: { productId: string; qty: number }[]): Promise<Sale>;
   saveSettings(settings: Settings): Promise<void>;
   switchUser(id: string): Promise<void>;
+  loginOwner(email: string, password: string): Promise<User>;
+  loginPin(userId: string, pin: string): Promise<User>;
+  logout(): Promise<void>;
+  createCashier(name: string, pin: string): Promise<User>;
+  updateUser(id: string, input: UpdateUserInput): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+  refreshAuth(): Promise<void>;
   resetDemo(): Promise<void>;
   clearAll(): Promise<void>;
 }
@@ -52,6 +72,8 @@ interface StoreValue {
 
   user: User;
   users: User[];
+  initialized: boolean;
+  authenticated: boolean;
   can(permission: Permission): boolean;
 
   /** Effective connectivity: real device network AND not simulating offline. */
@@ -90,6 +112,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [simulateFailure, setSimulateFailure] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  const [initialized, setInitialized] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [liveUser, setLiveUser] = useState<User | null>(null);
+  const [staffUsers, setStaffUsers] = useState<User[]>(MOCK_USERS);
+
   const deviceOnline = useOnlineStatus();
   const online = deviceOnline && !simulatedOffline;
 
@@ -99,6 +126,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<BroadcastChannel | null>(null);
   // ↓ The backend seam. Replace with a real HTTP transport later (see services/sync.ts).
   const transport = useMemo(() => createSimulatedTransport({ shouldFail: () => failRef.current }), []);
+
+  const refreshAuth = useCallback(async () => {
+    try {
+      const status = await fetchAuthStatus();
+      setInitialized(status.initialized);
+      setAuthenticated(status.authenticated);
+      if (status.user) {
+        setLiveUser(status.user);
+        if (status.user.role === 'owner') {
+          try {
+            const list = await fetchUsersApi();
+            setStaffUsers(list);
+          } catch {}
+        }
+      } else {
+        setLiveUser(null);
+      }
+    } catch (err) {
+      console.error('Could not refresh auth status:', err);
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -156,6 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, 10000);
     try {
       await ensureInitialized();
+      await refreshAuth();
       await refresh();
       finished = true;
       clearTimeout(safetyTimer);
@@ -166,7 +215,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearTimeout(safetyTimer);
       setBootError(errorMessage(e));
     }
-  }, [refresh]);
+  }, [refresh, refreshAuth]);
 
   useEffect(() => {
     void boot();
@@ -237,7 +286,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     else notify('You’re offline. Sales and stock changes are saved on this device and queued for sync.', { tone: 'warning' });
   }, [online, ready, pendingCount, notify]);
 
-  const user = useMemo(() => MOCK_USERS.find((u) => u.id === snap?.sessionUserId) ?? MOCK_USERS[0], [snap?.sessionUserId]);
+  const user = useMemo(() => {
+    if (liveUser) return liveUser;
+    return staffUsers.find((u) => u.id === snap?.sessionUserId) ?? staffUsers[0] ?? MOCK_USERS[0];
+  }, [liveUser, staffUsers, snap?.sessionUserId]);
   const actor = useMemo(() => ({ id: user.id, name: user.name }), [user.id, user.name]);
 
   const actions = useMemo<StoreActions>(() => {
@@ -330,11 +382,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           })
         );
       },
+      refundSale: async (saleId, reason, items) => {
+        const res = await refundSaleApi(saleId, reason, items);
+        await refresh();
+        return res.sale;
+      },
       saveSettings: async (settings) => {
         const saved = await saveSettingsApi(settings);
         return run(() => commands.saveSettings(saved));
       },
       switchUser: (id) => run(() => commands.setSessionUser(id)),
+      loginOwner: async (email, password) => {
+        const u = await loginOwnerApi({ email, password });
+        setLiveUser(u);
+        setAuthenticated(true);
+        await refreshAuth();
+        await refresh();
+        return u;
+      },
+      loginPin: async (userId, pin) => {
+        const u = await loginPinApi({ userId, pin });
+        setLiveUser(u);
+        setAuthenticated(true);
+        await refreshAuth();
+        await refresh();
+        return u;
+      },
+      logout: async () => {
+        await logoutApi();
+        setLiveUser(null);
+        setAuthenticated(false);
+        await refreshAuth();
+      },
+      createCashier: async (name, pin) => {
+        const u = await createCashierApi({ name, pin });
+        await refreshAuth();
+        return u;
+      },
+      updateUser: async (id, input) => {
+        const u = await updateUserApi(id, input);
+        await refreshAuth();
+        return u;
+      },
+      deleteUser: async (id) => {
+        await deleteUserApi(id);
+        await refreshAuth();
+      },
+      refreshAuth: async () => {
+        await refreshAuth();
+      },
       resetDemo: async () => {
         await clearDatabaseApi({ resetSettings: true });
         return run(() => seedDemo());
@@ -344,7 +440,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return run(() => clearAllData());
       },
     };
-  }, [actor, changed, snap]);
+  }, [actor, changed, refresh, refreshAuth, snap]);
 
   const value = useMemo<StoreValue | null>(() => {
     if (!snap) return null;
@@ -356,7 +452,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       settings: snap.settings,
       deviceId: snap.deviceId,
       user,
-      users: MOCK_USERS,
+      users: staffUsers.length > 0 ? staffUsers : MOCK_USERS,
+      initialized,
+      authenticated,
       can: (p) => canDo(user.role, p),
       online,
       deviceOnline,
@@ -381,11 +479,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       actions,
     };
-  }, [snap, user, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions]);
+  }, [snap, user, staffUsers, initialized, authenticated, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions]);
 
   if (bootError) return <BootError message={bootError} onRetry={() => void boot()} />;
   if (!value) return <Splash />;
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      <InitialSetupModal open={!initialized} onComplete={() => void refreshAuth()} />
+    </Ctx.Provider>
+  );
 }
 
 /** Turn any thrown value into a user-facing message (ValidationErrors are already friendly). */

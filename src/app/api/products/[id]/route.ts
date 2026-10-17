@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import mongoose from "mongoose";
+import { getSessionUser, verifyCsrfAndOrigin } from "@/lib/auth-server";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -58,6 +59,29 @@ export async function PATCH(
   { params }: RouteContext
 ) {
   try {
+    const csrfCheck = verifyCsrfAndOrigin(request);
+    if (!csrfCheck.valid) {
+      return NextResponse.json(
+        { success: false, message: csrfCheck.reason || "CSRF validation failed." },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getSessionUser(request);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    if (auth.user.role !== "owner") {
+      return NextResponse.json(
+        { success: false, message: "Only store owners can modify products." },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     if (!mongoose.isValidObjectId(id)) {
@@ -175,10 +199,33 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: RouteContext
 ) {
   try {
+    const csrfCheck = verifyCsrfAndOrigin(request);
+    if (!csrfCheck.valid) {
+      return NextResponse.json(
+        { success: false, message: csrfCheck.reason || "CSRF validation failed." },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getSessionUser(request);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    if (auth.user.role !== "owner") {
+      return NextResponse.json(
+        { success: false, message: "Only store owners can delete products." },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     if (!mongoose.isValidObjectId(id)) {

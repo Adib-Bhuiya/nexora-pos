@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB, withTransactionIfSupported } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import StockMovement from "@/models/StockMovement";
+import { getSessionUser, verifyCsrfAndOrigin } from "@/lib/auth-server";
 
 export async function GET() {
   try {
@@ -34,6 +35,29 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const csrfCheck = verifyCsrfAndOrigin(request);
+    if (!csrfCheck.valid) {
+      return NextResponse.json(
+        { success: false, message: csrfCheck.reason || "CSRF validation failed." },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getSessionUser(request);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    if (auth.user.role !== "owner") {
+      return NextResponse.json(
+        { success: false, message: "Only store owners can manually adjust stock." },
+        { status: 403 }
+      );
+    }
+
     let body: any;
     try {
       body = await request.json();
@@ -49,8 +73,9 @@ export async function POST(request: Request) {
       kind,
       quantity,
       note = "",
-      actorName = "Administrator",
     } = body ?? {};
+
+    const actorName = auth.user.name;
 
     if (
       typeof productId !== "string" ||

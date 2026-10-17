@@ -6,7 +6,11 @@ interface ClearResponse {
 export async function clearDatabaseApi(opts?: { resetSettings?: boolean }): Promise<void> {
   const response = await fetch('/api/clear-data', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
+    },
     body: JSON.stringify(opts ?? {}),
   });
 

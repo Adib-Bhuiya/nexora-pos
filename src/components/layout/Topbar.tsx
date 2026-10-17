@@ -100,7 +100,7 @@ function UserMenu() {
         className="flex items-center gap-2 rounded-full transition-transform duration-100 active:scale-95"
       >
         <Avatar initials={user.initials} size={36} />
-        <span className="hidden rounded-full bg-[#eef1f6] px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">{user.role === 'admin' ? 'Admin' : 'Cashier'}</span>
+        <span className="hidden rounded-full bg-[#eef1f6] px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">{user.role === 'owner' ? 'Owner' : 'Cashier'}</span>
       </button>
       {open && (
         <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[280px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">

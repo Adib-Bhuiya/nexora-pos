@@ -130,12 +130,12 @@ export default function SettingsPage() {
           </div>
           <div className="mt-4 overflow-hidden rounded-[11px] border border-line">
             <TableWrap>
-              <thead><tr><Th className="!border-t-0">What each role can do</Th><Th align="right" className="!border-t-0">Admin</Th><Th align="right" className="!border-t-0">Cashier</Th></tr></thead>
+              <thead><tr><Th className="!border-t-0">What each role can do</Th><Th align="right" className="!border-t-0">Owner</Th><Th align="right" className="!border-t-0">Cashier</Th></tr></thead>
               <tbody>
                 {CAPABILITIES.map((c) => (
                   <tr key={c.label}>
                     <Td className="!whitespace-normal">{c.label}</Td>
-                    <Td align="right"><Mark ok={c.admin} /></Td>
+                    <Td align="right"><Mark ok={c.owner} /></Td>
                     <Td align="right"><Mark ok={c.cashier} /></Td>
                   </tr>
                 ))}
@@ -145,7 +145,7 @@ export default function SettingsPage() {
         </Card>
 
         {!canWrite && (
-          <div className="lg:col-span-2"><Notice tone="info">Only administrators can change store settings. Switch to <b>Administrator</b> above to edit them.</Notice></div>
+          <div className="lg:col-span-2"><Notice tone="info">Only store owners can change store settings. Sign in as <b>Store Owner</b> above to edit them.</Notice></div>
         )}
 
         <fieldset disabled={!canWrite || busy} className="contents">

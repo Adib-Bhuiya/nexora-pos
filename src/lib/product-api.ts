@@ -42,7 +42,11 @@ export async function createProductApi(
 ): Promise<Product> {
   const response = await fetch('/api/products', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
+    },
     body: JSON.stringify(input),
   });
 
@@ -63,7 +67,11 @@ export async function updateProductApi(
     `/api/products/${encodeURIComponent(id)}`,
     {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'NexoraPOS',
+      },
       body: JSON.stringify(input),
     },
   );
@@ -80,7 +88,13 @@ export async function updateProductApi(
 export async function deleteProductApi(id: string): Promise<void> {
   const response = await fetch(
     `/api/products/${encodeURIComponent(id)}`,
-    { method: 'DELETE' },
+    {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'NexoraPOS',
+      },
+    },
   );
 
   await readResponse<ProductResponse>(response);
@@ -96,8 +110,10 @@ export async function updateStockApi(
 ): Promise<Product[]> {
   const response = await fetch('/api/products/stock', {
     method: 'PATCH',
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
     },
     body: JSON.stringify({ changes }),
   });

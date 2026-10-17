@@ -37,7 +37,11 @@ export async function fetchSettings(): Promise<Settings> {
 export async function saveSettingsApi(settings: Settings): Promise<Settings> {
   const response = await fetch('/api/settings', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
+    },
     body: JSON.stringify(settings),
   });
 

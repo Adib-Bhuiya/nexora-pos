@@ -4,12 +4,26 @@ import { connectDB, withTransactionIfSupported } from "@/lib/mongodb";
 import Sale from "@/models/Sale";
 import Product from "@/models/Product";
 import StockMovement from "@/models/StockMovement";
+import { getSessionUser, verifyCsrfAndOrigin } from "@/lib/auth-server";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await connectDB();
+    const auth = await getSessionUser(request);
 
-    const sales = await Sale.find().sort({ time: -1, createdAt: -1 }).lean();
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    const filter =
+      auth.user.role === "cashier" ? { cashierId: auth.user.id } : {};
+
+    const sales = await Sale.find(filter)
+      .sort({ time: -1, createdAt: -1 })
+      .lean();
 
     return NextResponse.json({
       success: true,
@@ -34,6 +48,22 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const csrfCheck = verifyCsrfAndOrigin(request);
+    if (!csrfCheck.valid) {
+      return NextResponse.json(
+        { success: false, message: csrfCheck.reason || "CSRF validation failed." },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getSessionUser(request);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required to complete sales." },
+        { status: 401 }
+      );
+    }
+
     let body: any;
     try {
       body = await request.json();
@@ -59,10 +89,12 @@ export async function POST(request: Request) {
       tendered,
       change,
       method,
-      cashierId,
-      cashierName,
       time = new Date().toISOString(),
     } = body ?? {};
+
+    // Inviolable Security: cashier identity is strictly stamped from the live session
+    const cashierId = auth.user.id;
+    const cashierName = auth.user.name;
 
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json(

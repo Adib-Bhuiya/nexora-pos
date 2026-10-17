@@ -193,10 +193,17 @@ describe('Mongoose Models Schema Validation', () => {
 });
 
 describe('API Route Validation & Bad Request Handling', () => {
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    'x-requested-with': 'NexoraPOS',
+    origin: 'http://localhost:3000',
+    'x-test-role': 'owner',
+  };
+
   it('POST /api/products returns 400 on invalid input', async () => {
     const req = new Request('http://localhost:3000/api/products', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ name: '', price: -10 }),
     });
 
@@ -220,6 +227,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res1 = await updateProductHandler(
       new Request('http://localhost:3000/api/products/invalid-id', {
         method: 'PATCH',
+        headers: authHeaders,
         body: JSON.stringify({}),
       }),
       { params: Promise.resolve({ id: 'invalid-id' }) }
@@ -230,7 +238,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res2 = await updateProductHandler(
       new Request(`http://localhost:3000/api/products/${validId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ name: '', price: -5 }),
       }),
       { params: Promise.resolve({ id: validId }) }
@@ -242,6 +250,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res = await deleteProductHandler(
       new Request('http://localhost:3000/api/products/not-an-id', {
         method: 'DELETE',
+        headers: authHeaders,
       }),
       { params: Promise.resolve({ id: 'not-an-id' }) }
     );
@@ -252,7 +261,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res1 = await updateStockHandler(
       new Request('http://localhost:3000/api/products/stock', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ changes: [] }),
       })
     );
@@ -261,7 +270,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res2 = await updateStockHandler(
       new Request('http://localhost:3000/api/products/stock', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           changes: [{ productId: 'bad-id', quantity: 0 }],
         }),
@@ -274,7 +283,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res1 = await createSaleHandler(
       new Request('http://localhost:3000/api/sales', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ items: [] }),
       })
     );
@@ -283,7 +292,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res2 = await createSaleHandler(
       new Request('http://localhost:3000/api/sales', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           items: [
             {
@@ -313,7 +322,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res1 = await adjustMovementHandler(
       new Request('http://localhost:3000/api/movements', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           productId: 'not-an-id',
           kind: 'restock',
@@ -327,7 +336,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res2 = await adjustMovementHandler(
       new Request('http://localhost:3000/api/movements', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           productId: validId,
           kind: 'restock',
@@ -341,7 +350,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res3 = await adjustMovementHandler(
       new Request('http://localhost:3000/api/movements', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           productId: validId,
           kind: 'set',
@@ -357,7 +366,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res1 = await updateSettingsHandler(
       new Request('http://localhost:3000/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ storeName: '', categories: ['Grocery'] }),
       })
     );
@@ -366,7 +375,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res2 = await updateSettingsHandler(
       new Request('http://localhost:3000/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           storeName: 'Valid Store',
           taxRate: 120, // > 100
@@ -379,7 +388,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     const res3 = await updateSettingsHandler(
       new Request('http://localhost:3000/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           storeName: 'Valid Store',
           categories: [], // Empty categories
@@ -389,6 +398,7 @@ describe('API Route Validation & Bad Request Handling', () => {
     expect(res3.status).toBe(400);
   });
 });
+
 
 describe('IndexedDB Multi-Collection Caching from MongoDB', () => {
   beforeEach(async () => {

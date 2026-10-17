@@ -32,6 +32,96 @@ const SaleItemSchema = new Schema(
       required: true,
       min: 0,
     },
+    refundedQty: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
+const RefundItemSchema = new Schema(
+  {
+    productId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    sku: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    qty: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    cost: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
+const RefundSchema = new Schema(
+  {
+    refundId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    refundReceipt: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    refundedAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    refundedBy: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    refundedByName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    items: {
+      type: [RefundItemSchema],
+      required: true,
+      validate: [
+        (v: unknown[]) => Array.isArray(v) && v.length > 0,
+        'Refund must include at least one item.',
+      ],
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
   },
   { _id: false }
 );
@@ -130,6 +220,15 @@ const SaleSchema = new Schema(
       type: String,
       default: 'synced',
       enum: ['pending', 'synced'],
+    },
+    status: {
+      type: String,
+      enum: ['completed', 'partially_refunded', 'refunded'],
+      default: 'completed',
+    },
+    refunds: {
+      type: [RefundSchema],
+      default: [],
     },
   },
   {

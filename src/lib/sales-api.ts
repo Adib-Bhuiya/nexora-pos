@@ -28,6 +28,7 @@ async function readResponse<T>(response: Response): Promise<T> {
 export async function fetchSales(): Promise<Sale[]> {
   const response = await fetch('/api/sales', {
     method: 'GET',
+    credentials: 'same-origin',
     cache: 'no-store',
   });
 
@@ -58,15 +59,19 @@ export interface RecordSaleApiInput {
   tendered?: number;
   change?: number;
   method: 'Cash' | 'Mobile financial service' | 'Card';
-  cashierId: string;
-  cashierName: string;
+  cashierId?: string;
+  cashierName?: string;
   time?: string;
 }
 
 export async function recordSaleApi(input: RecordSaleApiInput): Promise<Sale> {
   const response = await fetch('/api/sales', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
+    },
     body: JSON.stringify(input),
   });
 
@@ -77,5 +82,28 @@ export async function recordSaleApi(input: RecordSaleApiInput): Promise<Sale> {
   }
 
   return data.sale;
+}
+
+export async function refundSaleApi(
+  saleId: string,
+  reason: string,
+  items?: { productId: string; qty: number }[]
+): Promise<{ sale: Sale; message: string }> {
+  const response = await fetch(`/api/sales/${encodeURIComponent(saleId)}/refund`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
+    },
+    body: JSON.stringify({ reason, items }),
+  });
+
+  const data = await readResponse<{ success: boolean; sale?: Sale; message?: string }>(response);
+  if (!data.sale) {
+    throw new Error(data.message || 'Refund request failed.');
+  }
+
+  return { sale: data.sale, message: data.message || 'Refund processed successfully.' };
 }
 

@@ -7,7 +7,7 @@ dist/
 
 # env / secrets (this app needs none)
 .env
-.env.*
+ .env.*
 !.env.example
 
 # logs

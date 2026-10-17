@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'cashier';
+export type Role = 'owner' | 'cashier';
 
 /** Staff user for frontend role-based permissions. */
 export interface User {
@@ -6,6 +6,10 @@ export interface User {
   name: string;
   role: Role;
   initials: string;
+  email?: string;
+  isOwner?: boolean;
+  active?: boolean;
+  hasPin?: boolean;
 }
 
 export type PaymentMethod = 'Cash' | 'Mobile financial service' | 'Card';
@@ -59,6 +63,18 @@ export interface SaleItem {
   price: number;
   /** Unit cost snapshot, used for profit reporting. */
   cost: number;
+  refundedQty?: number;
+}
+
+export interface RefundRecord {
+  refundId: string;
+  refundReceipt: string;
+  refundedAt: string | Date;
+  refundedBy: string;
+  refundedByName: string;
+  reason: string;
+  items: SaleItem[];
+  amount: number;
 }
 
 export type SyncStatus = 'pending' | 'synced';
@@ -84,6 +100,8 @@ export interface Sale {
   tendered?: number;
   change?: number;
   syncStatus: SyncStatus;
+  status?: 'completed' | 'partially_refunded' | 'refunded';
+  refunds?: RefundRecord[];
 }
 
 export interface Settings {

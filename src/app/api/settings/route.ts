@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Settings from "@/models/Settings";
 import { DEFAULT_SETTINGS } from "@/config/constants";
+import { getSessionUser, verifyCsrfAndOrigin } from "@/lib/auth-server";
 
 export async function GET() {
   try {
@@ -59,6 +60,29 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const csrfCheck = verifyCsrfAndOrigin(request);
+    if (!csrfCheck.valid) {
+      return NextResponse.json(
+        { success: false, message: csrfCheck.reason || "CSRF validation failed." },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getSessionUser(request);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    if (auth.user.role !== "owner") {
+      return NextResponse.json(
+        { success: false, message: "Only store owners can update settings." },
+        { status: 403 }
+      );
+    }
+
     let body: any;
     try {
       body = await request.json();

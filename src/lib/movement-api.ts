@@ -46,7 +46,11 @@ export async function adjustStockApi(
 ): Promise<{ movement: StockMovement; product: Product }> {
   const response = await fetch('/api/movements', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'NexoraPOS',
+    },
     body: JSON.stringify({
       productId,
       kind,

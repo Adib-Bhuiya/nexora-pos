@@ -6,9 +6,33 @@ import Sale from "@/models/Sale";
 import StockMovement from "@/models/StockMovement";
 import Settings from "@/models/Settings";
 import { DEFAULT_SETTINGS } from "@/config/constants";
+import { getSessionUser, verifyCsrfAndOrigin } from "@/lib/auth-server";
 
 export async function POST(request: Request) {
   try {
+    const csrfCheck = verifyCsrfAndOrigin(request);
+    if (!csrfCheck.valid) {
+      return NextResponse.json(
+        { success: false, message: csrfCheck.reason || "CSRF validation failed." },
+        { status: 403 }
+      );
+    }
+
+    const auth = await getSessionUser(request);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    if (auth.user.role !== "owner") {
+      return NextResponse.json(
+        { success: false, message: "Only store owners can reset the database." },
+        { status: 403 }
+      );
+    }
+
     await connectDB();
 
     let body: { resetSettings?: boolean } = {};
