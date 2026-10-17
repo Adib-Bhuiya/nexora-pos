@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import User from '@/models/User';
 import {
-  ensureAuthIndexes,
-  verifyPassword,
-  createSession,
-  checkRateLimit,
+  getAuthService,
+  AuthConfigurationError,
+  AuthError,
   getClientIp,
   verifyCsrfAndOrigin,
-} from '@/lib/auth-server';
+} from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -20,20 +17,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const ip = getClientIp(request);
-    const rateCheck = await checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Too many login attempts. Please try again in ${rateCheck.retryAfterSec ?? 900} seconds.`,
-        },
-        { status: 429 }
-      );
-    }
-
-    await connectDB();
-    await ensureAuthIndexes();
+    const authService = getAuthService();
 
     let body: any;
     try {
@@ -46,71 +30,42 @@ export async function POST(request: Request) {
     }
 
     const { email, password } = body ?? {};
+    const ipAddress = getClientIp(request);
+    const userAgent = request.headers.get('user-agent') || undefined;
 
-    if (
-      typeof email !== 'string' ||
-      !email.trim() ||
-      typeof password !== 'string' ||
-      !password
-    ) {
-      return NextResponse.json(
-        { success: false, message: 'Email and password are required.' },
-        { status: 400 }
-      );
-    }
-
-    const user = await User.findOne({
-      email: email.trim().toLowerCase(),
+    const result = await authService.loginOwner({
+      email,
+      password,
+      ipAddress,
+      userAgent,
     });
 
-    if (!user) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid email or password.' },
-        { status: 401 }
-      );
-    }
-
-    if (!user.active) {
-      return NextResponse.json(
-        { success: false, message: 'This account has been deactivated.' },
-        { status: 401 }
-      );
-    }
-
-    const passwordValid = await verifyPassword(password, user.passwordHash || '');
-    if (!passwordValid) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid email or password.' },
-        { status: 401 }
-      );
-    }
-
-    const { cookieHeader } = await createSession(
-      user._id.toString(),
-      user.role,
-      user.name,
-      request
-    );
-
-    const res = NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Logged in successfully.',
-      user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isOwner: Boolean(user.isOwner),
-        initials: user.initials,
-      },
+      user: result.user,
     });
 
-    res.headers.set('Set-Cookie', cookieHeader);
-    return res;
+    response.headers.set('Set-Cookie', result.cookieHeader);
+    return response;
   } catch (error) {
-    console.error('Login failed:', error);
+    if (error instanceof AuthConfigurationError) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 503 }
+      );
+    }
+
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: error.status }
+      );
+    }
+
+    console.error('Login error:', error);
     return NextResponse.json(
-      { success: false, message: 'Login failed.' },
+      { success: false, message: 'Internal error during login.' },
       { status: 500 }
     );
   }

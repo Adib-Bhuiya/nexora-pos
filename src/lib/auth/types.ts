@@ -138,3 +138,72 @@ export interface RateLimitResult {
   retryAfterSec?: number;
   resetAt?: Date;
 }
+
+/**
+ * Verified user and session context resolved from a request.
+ */
+export interface AuthContext {
+  session: SessionContext;
+  user: SafeUser;
+}
+
+/**
+ * Result of successful owner setup or login.
+ */
+export interface AuthResult {
+  user: SafeUser;
+  session: SessionRecord;
+  rawToken: string;
+  cookieHeader: string;
+}
+
+/**
+ * Service input for initial owner setup.
+ */
+export interface SetupOwnerServiceInput {
+  setupKey: string;
+  name: string;
+  email: string;
+  password: string;
+  pin?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+/**
+ * Service input for owner password login.
+ */
+export interface LoginOwnerServiceInput {
+  email: string;
+  password: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+/**
+ * Service input for cashier PIN login.
+ */
+export interface LoginPinServiceInput {
+  userId: string;
+  pin: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+/**
+ * Service input for creating a new cashier account.
+ */
+export interface CreateCashierServiceInput {
+  name: string;
+  pin: string;
+}
+
+/**
+ * Service input for updating staff user details.
+ */
+export interface UpdateUserServiceInput {
+  name?: string;
+  active?: boolean;
+  pin?: string;
+}
+

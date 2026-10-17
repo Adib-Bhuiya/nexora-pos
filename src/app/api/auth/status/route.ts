@@ -1,25 +1,35 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import User from '@/models/User';
-import { ensureAuthIndexes, getSessionUser } from '@/lib/auth-server';
+import {
+  getAuthService,
+  AuthConfigurationError,
+  extractTokenFromRequest,
+} from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
-    await connectDB();
-    await ensureAuthIndexes();
-
-    const userCount = await User.countDocuments();
-    const initialized = userCount > 0;
-
-    const authContext = await getSessionUser(request);
+    const authService = getAuthService();
+    const token = extractTokenFromRequest(request);
+    const status = await authService.getAuthStatus(token);
 
     return NextResponse.json({
       success: true,
-      initialized,
-      authenticated: Boolean(authContext),
-      user: authContext ? authContext.user : null,
+      initialized: status.initialized,
+      authenticated: status.authenticated,
+      user: status.user,
     });
   } catch (error) {
+    if (error instanceof AuthConfigurationError) {
+      return NextResponse.json(
+        {
+          success: false,
+          initialized: false,
+          authenticated: false,
+          message: error.message,
+        },
+        { status: 503 }
+      );
+    }
+
     console.error('Failed to get auth status:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to retrieve auth status.' },

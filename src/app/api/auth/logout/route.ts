@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { revokeSession, verifyCsrfAndOrigin } from '@/lib/auth-server';
+import {
+  getAuthService,
+  AuthConfigurationError,
+  extractTokenFromRequest,
+  verifyCsrfAndOrigin,
+  buildClearCookieHeader,
+} from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +17,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const clearCookieHeader = await revokeSession(request);
+    const rawToken = extractTokenFromRequest(request);
+    let clearCookieHeader = buildClearCookieHeader();
+
+    try {
+      const authService = getAuthService();
+      clearCookieHeader = await authService.logout(rawToken);
+    } catch (err) {
+      if (!(err instanceof AuthConfigurationError)) {
+        throw err;
+      }
+      // If service is unconfigured, still clear cookie for client
+    }
 
     const res = NextResponse.json({
       success: true,
