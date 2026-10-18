@@ -7,7 +7,6 @@ import { BRAND } from '@/config/brand';
 import { ROUTES } from '@/config/routes';
 import { cn } from '@/lib/cn';
 import { useStore } from '@/store/StoreProvider';
-import { Database } from 'lucide-react';
 
 /** Trailing-slash safe: '/checkout/' matches '/checkout'. Dashboard ('/') only matches exactly. */
 export const isActivePath = (pathname: string, path: string) => {
@@ -45,14 +44,11 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="mx-[3px] mt-12 rounded-xl border border-[#edf0f4] bg-[#f7f8fb] p-[13px] text-[11px] text-muted">
-        <strong className="mb-[5px] flex items-center gap-1.5 text-xs text-ink">
-          <Database size={13} aria-hidden /> Local data
-        </strong>
-        Everything is saved in this browser (IndexedDB). No backend is connected.
-      </div>
       <div className="mx-[9px] my-[17px] text-[10px] text-[#a0a8b5]">
-        {BRAND.name} {BRAND.suffix} · v{BRAND.version}
+        <div>Built by Adib Bhuiya</div>
+        <div>
+          {BRAND.name} {BRAND.suffix} · v{BRAND.version}
+        </div>
       </div>
     </aside>
   );
