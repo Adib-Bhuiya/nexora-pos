@@ -141,6 +141,25 @@ momentum-aware dismissal); press feedback is instant; top bars use a translucent
 *reduced transparency / increased contrast*; *reduced motion* swaps movement for cross-fades; focus is trapped and restored in dialogs;
 inputs are 16 px on phones to avoid iOS zoom. The prototype had no dark theme, so none was added.
 
+## Authentication Database Preflight (Stage 4B.1)
+
+Nexora POS includes a strictly **read-only** database preflight tool (`scripts/auth-preflight.ts`) to verify data integrity and index readiness before authentication is connected to MongoDB Atlas.
+
+### Running Preflight
+
+After configuring `MONGODB_URI` in your server environment:
+
+```bash
+npm run auth:preflight
+# or directly with tsx:
+npx tsx scripts/auth-preflight.ts
+```
+
+### Operational Safety & Boundaries
+- **Strictly Read-Only:** The script inspects indexes and executes read-only aggregation queries. It **never** writes, modifies, deletes data, or creates/drops indexes.
+- **Credential Protection:** The script reads `MONGODB_URI` from the environment without printing, logging, or exposing secret values.
+- **Separate Remediation:** Index creation and conflict resolution are separate, manually approved steps. If preflight detects missing indexes or duplicate records, resolve the reported IDs before running live authentication.
+
 ## Notes
 
 - **Deploying:** upload the contents of `out/` to any static host (Netlify, Vercel static, GitHub Pages, S3, nginx…). Routes are exported as `/checkout/index.html` etc. (`trailingSlash: true`). Under a sub-path, set `basePath` in `next.config.mjs` and adjust `scope`/`start_url` in `public/manifest.webmanifest` and the `/sw.js` path in `src/hooks/useServiceWorker.ts`.
