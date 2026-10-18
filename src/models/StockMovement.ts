@@ -1,4 +1,4 @@
-import { Schema, models, model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
 const StockMovementSchema = new Schema(
   {
@@ -65,7 +65,8 @@ StockMovementSchema.index({ productId: 1, time: -1 });
 StockMovementSchema.index({ seq: -1 });
 
 const StockMovement =
-  models.StockMovement || model('StockMovement', StockMovementSchema);
+  mongoose.models.StockMovement ||
+  mongoose.model('StockMovement', StockMovementSchema);
 
 export default StockMovement;
 

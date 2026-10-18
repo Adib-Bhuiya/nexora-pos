@@ -847,4 +847,29 @@ describe('Authentication Database Preflight (Stage 4B.4)', () => {
       expect(output).toContain('Conflicting IDs: 60d5ecb8b5c9c61234567810');
     });
   });
+
+  describe('Mongoose ESM Model Exports & Model Cache Registration', () => {
+    it('registers User, Session, and RateLimit models in mongoose.models without ESM syntax errors', async () => {
+      expect(mongoose.models.User).toBeDefined();
+      expect(mongoose.models.Session).toBeDefined();
+      expect(mongoose.models.RateLimit).toBeDefined();
+      expect(User.modelName).toBe('User');
+      expect(Session.modelName).toBe('Session');
+      expect(RateLimit.modelName).toBe('RateLimit');
+      expect(mongoose.models.User).toBe(User);
+      expect(mongoose.models.Session).toBe(Session);
+      expect(mongoose.models.RateLimit).toBe(RateLimit);
+    });
+
+    it('preserves existing model instances and avoids OverwriteModelError on repeated access', async () => {
+      const userModule = await import('@/models/User');
+      const sessionModule = await import('@/models/Session');
+      const rateLimitModule = await import('@/models/RateLimit');
+
+      expect(userModule.default).toBe(User);
+      expect(sessionModule.default).toBe(Session);
+      expect(rateLimitModule.default).toBe(RateLimit);
+    });
+  });
 });
+

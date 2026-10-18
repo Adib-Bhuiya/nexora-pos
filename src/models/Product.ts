@@ -1,5 +1,5 @@
 
-import { Schema, models, model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
 const ProductSchema = new Schema(
   {
@@ -66,6 +66,6 @@ ProductSchema.index(
 );
 
 const Product =
-  models.Product || model('Product', ProductSchema);
+  mongoose.models.Product || mongoose.model('Product', ProductSchema);
 
 export default Product;

@@ -1,4 +1,4 @@
-import { Schema, models, model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
 const SaleItemSchema = new Schema(
   {
@@ -239,7 +239,7 @@ const SaleSchema = new Schema(
 SaleSchema.index({ time: -1 });
 SaleSchema.index({ cashierId: 1, time: -1 });
 
-const Sale = models.Sale || model('Sale', SaleSchema);
+const Sale = mongoose.models.Sale || mongoose.model('Sale', SaleSchema);
 
 export default Sale;
 

@@ -1,4 +1,4 @@
-import { Schema, models, model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
 const RateLimitSchema = new Schema(
   {
@@ -25,6 +25,6 @@ const RateLimitSchema = new Schema(
   }
 );
 
-const RateLimit = models.RateLimit || model('RateLimit', RateLimitSchema);
+const RateLimit = mongoose.models.RateLimit || mongoose.model('RateLimit', RateLimitSchema);
 
 export default RateLimit;

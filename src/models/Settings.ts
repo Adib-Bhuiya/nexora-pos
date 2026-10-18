@@ -1,4 +1,4 @@
-import { Schema, models, model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { DEFAULT_CATEGORIES } from '@/config/constants';
 
 const SettingsSchema = new Schema(
@@ -110,7 +110,7 @@ const SettingsSchema = new Schema(
   }
 );
 
-const Settings = models.Settings || model('Settings', SettingsSchema);
+const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
 
 export default Settings;
 
