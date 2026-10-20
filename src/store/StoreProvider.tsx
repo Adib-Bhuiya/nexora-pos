@@ -447,11 +447,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       logout: async () => {
         try {
           await logoutApi();
-        } finally {
+          // Server confirmed session revocation
           setLiveUser(null);
           setAuthenticated(false);
           setStaffUsers([]);
+          await commands.clearSessionUser().catch(() => undefined);
           await refreshAuth().catch(() => undefined);
+        } catch (err: any) {
+          console.error('Logout error:', err);
+          // Recheck /api/auth/status before deciding whether the user is still authenticated
+          let serverStillAuthenticated = false;
+          try {
+            const status = await fetchAuthStatus();
+            setInitialized(status.initialized);
+            setAuthenticated(status.authenticated);
+            if (status.authenticated && status.user) {
+              setLiveUser(status.user);
+              serverStillAuthenticated = true;
+            } else {
+              setLiveUser(null);
+              setStaffUsers([]);
+              await commands.clearSessionUser().catch(() => undefined);
+            }
+          } catch (recheckErr) {
+            console.error('Failed to recheck auth status after failed logout:', recheckErr);
+          }
+
+          const message = err?.message || 'Logout failed. Please check your connection.';
+          notify(message, { tone: 'error' });
+          if (serverStillAuthenticated) {
+            throw err;
+          }
         }
       },
       createCashier: async (name, pin) => {

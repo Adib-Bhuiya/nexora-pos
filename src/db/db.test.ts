@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@/config/constants';
 import { ValidationError } from '@/lib/validation';
 import { createSimulatedTransport, runSync, clearSyncHistory } from '@/services/sync';
-import { adjustStock, createProduct, deleteProduct, recordSale, saveSettings, updateProduct, type Actor } from './commands';
+import { adjustStock, clearSessionUser, createProduct, deleteProduct, recordSale, saveSettings, setSessionUser, updateProduct, type Actor } from './commands';
 import { closeDb } from './idb';
 import { buildDemoData, clearAllData, ensureInitialized } from './seed';
 import { exportAll, loadSnapshot } from './snapshot';
@@ -59,6 +59,20 @@ describe('first run', () => {
     expect(s.products).toHaveLength(0);
     expect(s.sales).toHaveLength(0);
     expect(s.movements).toHaveLength(0);
+  });
+
+  it('clearSessionUser clears local session metadata while preserving products and settings', async () => {
+    await ensureInitialized();
+    await createProduct(input(), actor);
+    await setSessionUser('user_test_123');
+    let snap = await loadSnapshot();
+    expect(snap.sessionUserId).toBe('user_test_123');
+    expect(snap.products).toHaveLength(1);
+
+    await clearSessionUser();
+    snap = await loadSnapshot();
+    expect(snap.sessionUserId).toBe('');
+    expect(snap.products).toHaveLength(1);
   });
 });
 

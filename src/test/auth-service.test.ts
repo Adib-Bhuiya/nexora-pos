@@ -359,6 +359,37 @@ describe('AuthService Layer (Stage 2)', () => {
       expect(context).toBeNull();
     });
 
+    it('cashier logout revokes session and invalidates subsequent resolution', async () => {
+      const setup = await authService.setupOwner({
+        setupKey: 'test-owner-setup-key',
+        name: 'Store Owner',
+        email: 'owner@store.com',
+        password: 'Password123!',
+      });
+
+      const cashier = await authService.createCashier(setup.user, {
+        name: 'Cashier Alice',
+        pin: '839174',
+      });
+
+      const cashierLogin = await authService.loginPin({
+        userId: cashier.id,
+        pin: '839174',
+      });
+
+      const contextBefore = await authService.resolveSession(cashierLogin.rawToken);
+      expect(contextBefore).not.toBeNull();
+      expect(contextBefore?.session.role).toBe('cashier');
+
+      const clearHeader = await authService.logout(cashierLogin.rawToken);
+      expect(clearHeader).toContain('Max-Age=0');
+      expect(clearHeader).toContain('HttpOnly');
+      expect(clearHeader).toContain('Path=/');
+
+      const contextAfter = await authService.resolveSession(cashierLogin.rawToken);
+      expect(contextAfter).toBeNull();
+    });
+
     it('deactivating user revokes all active sessions across devices', async () => {
       const setup = await authService.setupOwner({
         setupKey: 'test-owner-setup-key',

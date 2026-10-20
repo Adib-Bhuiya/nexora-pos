@@ -350,3 +350,9 @@ export async function setSessionUser(userId: string): Promise<void> {
     await s.meta.put({ key: 'sessionUserId', value: userId });
   });
 }
+
+export async function clearSessionUser(): Promise<void> {
+  await transaction(['meta'], 'readwrite', async (s) => {
+    await s.meta.delete('sessionUserId');
+  });
+}

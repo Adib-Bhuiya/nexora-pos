@@ -78,6 +78,7 @@ function UserMenu() {
   const [open, setOpen] = useState(false);
   const [pinTargetCashier, setPinTargetCashier] = useState<User | null>(null);
   const [ownerLoginOpen, setOwnerLoginOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,10 +106,13 @@ function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${user.name}, ${ROLE_LABEL[user.role]}. Open user menu`}
-        className="flex items-center gap-2 rounded-full transition-transform duration-100 active:scale-95"
+        className="flex items-center gap-2 rounded-full p-1 pl-1.5 pr-2 transition-all duration-100 hover:bg-[#f0f3f8] active:scale-95 cursor-pointer"
       >
-        <Avatar initials={user.initials} size={36} />
-        <span className="hidden rounded-full bg-[#eef1f6] px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">
+        <Avatar initials={user.initials} size={34} />
+        <span className="hidden sm:inline text-xs font-bold text-ink max-w-[120px] truncate">
+          {user.name.split(' ')[0]}
+        </span>
+        <span className="hidden rounded-full bg-[#eef1f6] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">
           {user.role === 'owner' ? 'Owner' : 'Cashier'}
         </span>
       </button>
@@ -178,14 +182,23 @@ function UserMenu() {
           <button
             type="button"
             role="menuitem"
+            disabled={loggingOut}
             onClick={async () => {
-              setOpen(false);
-              await actions.logout();
-              notify('Signed out successfully.', { tone: 'info' });
+              setLoggingOut(true);
+              try {
+                await actions.logout();
+                setOpen(false);
+                notify('Signed out successfully.', { tone: 'info' });
+              } catch {
+                // actions.logout already dispatched the error toast
+              } finally {
+                setLoggingOut(false);
+              }
             }}
-            className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-danger hover:bg-red-50"
+            className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-danger hover:bg-red-50 disabled:opacity-50 transition-colors cursor-pointer"
           >
-            <LogOut size={14} /> Sign out
+            <LogOut size={14} className={loggingOut ? 'animate-spin' : ''} />
+            {loggingOut ? 'Signing out…' : 'Sign out'}
           </button>
         </div>
       )}
