@@ -43,11 +43,8 @@ export const EMOJI_PRESETS: { emoji: string; tone: string }[] = [
 
 export const DEFAULT_EMOJI = EMOJI_PRESETS[EMOJI_PRESETS.length - 1];
 
-/** Default fallback user profiles. Real authentication is loaded from /api/auth/status. */
-export const MOCK_USERS: User[] = [
-  { id: 'u-owner', name: 'Store Owner', role: 'owner', initials: 'OW', isOwner: true, active: true },
-  { id: 'u-cash-1', name: 'Cashier', role: 'cashier', initials: 'CA', isOwner: false, active: true },
-];
+/** Deprecated legacy mock fixtures. Real authentication is loaded from /api/auth/status. */
+export const MOCK_USERS: User[] = [];
 
 export const DEFAULT_SETTINGS: Settings = {
   storeName: 'Nexora POS',

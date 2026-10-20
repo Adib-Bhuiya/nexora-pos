@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/Fields';
 import { useToast } from '@/components/ui/Toast';
 import { setupOwnerApi } from '@/lib/auth-api';
+import type { User } from '@/types';
 
 export function InitialSetupModal({
   open,
   onComplete,
 }: {
   open: boolean;
-  onComplete: () => void;
+  onComplete: (user: User) => void;
 }) {
   const { notify } = useToast();
   const [setupKey, setSetupKey] = useState('');
@@ -51,7 +52,7 @@ export function InitialSetupModal({
 
     setBusy(true);
     try {
-      await setupOwnerApi({
+      const createdOwner = await setupOwnerApi({
         setupKey: setupKey.trim(),
         name: name.trim(),
         email: email.trim(),
@@ -59,8 +60,8 @@ export function InitialSetupModal({
         pin: pin.trim() || undefined,
       });
 
-      notify('Primary store owner initialized successfully!', { tone: 'success' });
-      onComplete();
+      notify(`Primary store owner initialized! Welcome, ${createdOwner.name}.`, { tone: 'success' });
+      onComplete(createdOwner);
     } catch (err: any) {
       setError(err?.message || 'Failed to complete initial setup.');
     } finally {

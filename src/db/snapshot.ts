@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, MOCK_USERS } from '@/config/constants';
+import { DEFAULT_SETTINGS } from '@/config/constants';
 import type { Product, Sale, Settings, StockMovement, SyncOperation } from '@/types';
 import { transaction } from './idb';
 
@@ -32,7 +32,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
       movements: movements.sort((a, b) => b.seq - a.seq),
       queue: queue.sort((a, b) => a.seq - b.seq),
       settings,
-      sessionUserId: typeof session?.value === 'string' ? session.value : MOCK_USERS[0].id,
+      sessionUserId: typeof session?.value === 'string' ? session.value : '',
       deviceId: typeof device?.value === 'string' ? device.value : '',
     };
   });

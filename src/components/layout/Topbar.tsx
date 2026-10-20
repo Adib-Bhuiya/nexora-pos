@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, RefreshCw, Settings as SettingsIcon, TriangleAlert } from 'lucide-react';
+import { LogOut, RefreshCw, Settings as SettingsIcon, Shield, TriangleAlert } from 'lucide-react';
 import { BRAND } from '@/config/brand';
 import { ROLE_LABEL } from '@/config/permissions';
 import { cn } from '@/lib/cn';
@@ -10,6 +10,9 @@ import { useStore } from '@/store/StoreProvider';
 import { useToast } from '@/components/ui/Toast';
 import { Avatar } from '@/components/ui/Bits';
 import { SyncCenter } from '@/components/sync/SyncCenter';
+import { OwnerLoginModal } from '@/components/auth/OwnerLoginModal';
+import { PinKeypadModal } from '@/components/auth/PinKeypadModal';
+import type { User } from '@/types';
 
 export function Topbar() {
   const { online, deviceOnline, simulatedOffline, setSimulatedOffline, syncing, pendingCount, failedCount } = useStore();
@@ -73,6 +76,8 @@ function UserMenu() {
   const { user, users, actions } = useStore();
   const { notify } = useToast();
   const [open, setOpen] = useState(false);
+  const [pinTargetCashier, setPinTargetCashier] = useState<User | null>(null);
+  const [ownerLoginOpen, setOwnerLoginOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,6 +94,9 @@ function UserMenu() {
     };
   }, [open]);
 
+  // Cashiers created by owner
+  const realCashiers = users.filter((u) => u.id !== user.id && u.role === 'cashier');
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -100,44 +108,108 @@ function UserMenu() {
         className="flex items-center gap-2 rounded-full transition-transform duration-100 active:scale-95"
       >
         <Avatar initials={user.initials} size={36} />
-        <span className="hidden rounded-full bg-[#eef1f6] px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">{user.role === 'owner' ? 'Owner' : 'Cashier'}</span>
+        <span className="hidden rounded-full bg-[#eef1f6] px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#667186] md:inline">
+          {user.role === 'owner' ? 'Owner' : 'Cashier'}
+        </span>
       </button>
       {open && (
         <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[280px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
           <div className="px-2.5 pb-2 pt-1.5">
-            <div className="text-[13px] font-extrabold">{user.name}</div>
-            <div className="text-[11px] text-muted">{ROLE_LABEL[user.role]}</div>
+            <div className="text-[13px] font-extrabold truncate">{user.name}</div>
+            <div className="text-[11px] text-muted flex items-center justify-between">
+              <span>{ROLE_LABEL[user.role]}</span>
+              {user.email && <span className="truncate max-w-[150px]">{user.email}</span>}
+            </div>
           </div>
-          <div className="px-2.5 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[1.2px] text-[#8993a4]">Switch profile</div>
-          {users.map((u) => (
-            <button
-              key={u.id}
-              type="button"
-              role="menuitemradio"
-              aria-checked={u.id === user.id}
-              onClick={async () => {
-                setOpen(false);
-                if (u.id !== user.id) {
-                  await actions.switchUser(u.id);
-                  notify(`Now viewing as ${u.name} (${ROLE_LABEL[u.role]}).`);
-                }
-              }}
-              className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors duration-100 hover:bg-[#eef1f6] active:bg-[#e4e9f2]"
-            >
-              <Avatar initials={u.initials} size={30} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-bold">{u.name}</span>
-                <span className="block text-[10px] text-muted">{ROLE_LABEL[u.role]}</span>
-              </span>
-              {u.id === user.id && <Check size={15} className="text-brand" />}
-            </button>
-          ))}
+
+          {user.role === 'owner' && realCashiers.length > 0 && (
+            <>
+              <div className="my-1 border-t border-line" />
+              <div className="px-2.5 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[1.2px] text-[#8993a4]">
+                Switch to Cashier PIN
+              </div>
+              {realCashiers.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    setPinTargetCashier(c);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors duration-100 hover:bg-[#eef1f6] active:bg-[#e4e9f2]"
+                >
+                  <Avatar initials={c.initials} size={28} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-bold truncate">{c.name}</span>
+                    <span className="block text-[10px] text-muted">PIN required</span>
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+
+          {user.role === 'cashier' && (
+            <>
+              <div className="my-1 border-t border-line" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  setOwnerLoginOpen(true);
+                }}
+                className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-brand hover:bg-brand-soft"
+              >
+                <Shield size={14} /> Switch to Owner
+              </button>
+            </>
+          )}
+
           <div className="my-1 border-t border-line" />
-          <Link href="/settings" onClick={() => setOpen(false)} role="menuitem" className="flex items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-[#394356] hover:bg-[#eef1f6]">
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            role="menuitem"
+            className="flex items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-[#394356] hover:bg-[#eef1f6]"
+          >
             <SettingsIcon size={14} /> Staff &amp; settings
           </Link>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={async () => {
+              setOpen(false);
+              await actions.logout();
+              notify('Signed out successfully.', { tone: 'info' });
+            }}
+            className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-danger hover:bg-red-50"
+          >
+            <LogOut size={14} /> Sign out
+          </button>
         </div>
       )}
+
+      {/* Cashier PIN Switch Modal */}
+      <PinKeypadModal
+        open={Boolean(pinTargetCashier)}
+        cashier={pinTargetCashier}
+        onClose={() => setPinTargetCashier(null)}
+        onSuccess={(authenticatedCashier) => {
+          setPinTargetCashier(null);
+          notify(`Switched to cashier: ${authenticatedCashier.name}`);
+        }}
+      />
+
+      {/* Owner Login Switch Modal */}
+      <OwnerLoginModal
+        open={ownerLoginOpen}
+        onClose={() => setOwnerLoginOpen(false)}
+        onSuccess={(authenticatedOwner) => {
+          setOwnerLoginOpen(false);
+          notify(`Signed in as owner: ${authenticatedOwner.name}`);
+        }}
+      />
     </div>
   );
 }

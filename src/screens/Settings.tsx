@@ -5,7 +5,7 @@ import { Check, CircleX, Download, Plus, Receipt as ReceiptIcon, RefreshCw, Shie
 import { Receipt } from '@/components/receipt/Receipt';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHead, EmptyState, Notice, PageHeader } from '@/components/ui/Card';
-import { ConfirmDialog } from '@/components/ui/Dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/Dialog';
 import { Input, Segmented, SelectField, SwitchRow, TextAreaField, TextField } from '@/components/ui/Fields';
 import { Avatar, StatusPill, TableWrap, Td, Th } from '@/components/ui/Bits';
 import { useToast } from '@/components/ui/Toast';
@@ -15,7 +15,6 @@ import { exportAll } from '@/db/snapshot';
 import { applyUpdate, useServiceWorker } from '@/hooks/useServiceWorker';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { downloadFile } from '@/lib/csv';
-import { cn } from '@/lib/cn';
 import { validateSettingsDraft, type Errors, type SettingsDraft } from '@/lib/validation';
 import { useStore, userMessage } from '@/store/StoreProvider';
 import type { Sale, Settings as SettingsType } from '@/types';
@@ -31,6 +30,51 @@ export default function SettingsPage() {
   const [newCategory, setNewCategory] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<null | 'reset' | 'clear'>(null);
+
+  const [addCashierOpen, setAddCashierOpen] = useState(false);
+  const [cashierName, setCashierName] = useState('');
+  const [cashierPin, setCashierPin] = useState('');
+  const [cashierBusy, setCashierBusy] = useState(false);
+  const [cashierError, setCashierError] = useState<string | null>(null);
+  const [deletingCashierId, setDeletingCashierId] = useState<string | null>(null);
+
+  const handleCreateCashier = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!cashierName.trim()) {
+      setCashierError('Cashier name is required.');
+      return;
+    }
+    if (!/^\d{4,6}$/.test(cashierPin.trim())) {
+      setCashierError('PIN must be 4 to 6 numeric digits.');
+      return;
+    }
+
+    setCashierBusy(true);
+    setCashierError(null);
+    try {
+      await actions.createCashier(cashierName.trim(), cashierPin.trim());
+      notify(`Cashier account created for ${cashierName.trim()}.`, { tone: 'success' });
+      setCashierName('');
+      setCashierPin('');
+      setAddCashierOpen(false);
+    } catch (err: any) {
+      setCashierError(err?.message || 'Failed to create cashier account.');
+    } finally {
+      setCashierBusy(false);
+    }
+  };
+
+  const handleDeleteCashier = async (id: string, name: string) => {
+    setDeletingCashierId(id);
+    try {
+      await actions.deleteUser(id);
+      notify(`Cashier account for ${name} removed.`, { tone: 'success' });
+    } catch (err: any) {
+      notify(err?.message || 'Failed to delete cashier account.', { tone: 'error' });
+    } finally {
+      setDeletingCashierId(null);
+    }
+  };
 
   // Pick up changes saved elsewhere (another tab) while the form is untouched.
   const saved = useMemo(() => JSON.stringify(toDraft(settings)), [settings]);
@@ -109,28 +153,36 @@ export default function SettingsPage() {
       <PageHeader eyebrow="ADMINISTRATION" title="Staff & settings" sub="Configure store settings and test staff roles." />
 
       <div className="grid gap-[18px] lg:grid-cols-2">
-        {/* ---------- staff roles ---------- */}
+        {/* ---------- active operator & role capabilities ---------- */}
         <Card className="p-[19px] max-md:p-3.5 lg:col-span-2">
-          <CardHead title="Staff profiles" sub="Select an active operator profile to test role permissions." />
-          <Notice tone="info" icon={<ShieldAlert size={15} />}>
-            <strong>Staff Role Switcher</strong>: Select an active operator profile to test role-based access control (Administrator or Cashier) in the POS interface.
-          </Notice>
-          <div className="mt-4 grid gap-2.5 md:grid-cols-2" role="radiogroup" aria-label="Staff profile">
-            {users.map((u) => {
-              const active = u.id === user.id;
-              return (
-                <button key={u.id} type="button" role="radio" aria-checked={active} onClick={async () => { if (!active) { await actions.switchUser(u.id); notify(`Now viewing as ${u.name} (${ROLE_LABEL[u.role]}).`); } }}
-                  className={cn('flex items-center gap-3 rounded-[12px] border p-3.5 text-left transition-[transform,border-color,background-color] duration-100 active:scale-[.98]', active ? 'border-brand bg-brand-soft' : 'border-line bg-white hover:bg-[#f8faff]')}>
-                  <Avatar initials={u.initials} size={38} />
-                  <span className="min-w-0 flex-1"><span className="block text-[13px] font-bold">{u.name}</span><span className="block text-[11px] text-muted">{ROLE_LABEL[u.role]}</span></span>
-                  {active && <Check size={16} className="text-brand" aria-hidden />}
-                </button>
-              );
-            })}
+          <CardHead title="Current operator" sub="Authenticated account details and role permissions." />
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-line bg-[#f8fafc] p-4">
+            <div className="flex items-center gap-3.5">
+              <Avatar initials={user.initials} size={44} />
+              <div>
+                <div className="text-sm font-extrabold text-ink">{user.name}</div>
+                <div className="text-xs text-muted flex items-center gap-2">
+                  <span className="font-semibold text-brand">{ROLE_LABEL[user.role]}</span>
+                  {user.email && <span>· {user.email}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" /> Active session
+              </span>
+            </div>
           </div>
+
           <div className="mt-4 overflow-hidden rounded-[11px] border border-line">
             <TableWrap>
-              <thead><tr><Th className="!border-t-0">What each role can do</Th><Th align="right" className="!border-t-0">Owner</Th><Th align="right" className="!border-t-0">Cashier</Th></tr></thead>
+              <thead>
+                <tr>
+                  <Th className="!border-t-0">What each role can do</Th>
+                  <Th align="right" className="!border-t-0">Owner</Th>
+                  <Th align="right" className="!border-t-0">Cashier</Th>
+                </tr>
+              </thead>
               <tbody>
                 {CAPABILITIES.map((c) => (
                   <tr key={c.label}>
@@ -144,8 +196,65 @@ export default function SettingsPage() {
           </div>
         </Card>
 
+        {/* ---------- staff cashier accounts (owner only) ---------- */}
+        {user.role === 'owner' && (
+          <Card className="p-[19px] max-md:p-3.5 lg:col-span-2">
+            <CardHead
+              title="Staff accounts (Cashiers)"
+              sub="Manage register access PINs for store cashiers."
+              right={
+                <Button size="sm" variant="primary" onClick={() => setAddCashierOpen(true)}>
+                  <Plus size={14} aria-hidden /> Add cashier
+                </Button>
+              }
+            />
+
+            {users.filter((u) => u.role === 'cashier').length === 0 ? (
+              <EmptyState
+                icon={<ShieldAlert size={20} />}
+                title="No cashier accounts created"
+                text="Create cashier accounts so staff members can sign in with a numeric PIN to operate the register."
+                action={
+                  <Button size="sm" variant="primary" onClick={() => setAddCashierOpen(true)}>
+                    <Plus size={14} aria-hidden /> Create first cashier
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="divide-y divide-[#edf0f4] rounded-[11px] border border-line overflow-hidden">
+                {users
+                  .filter((u) => u.role === 'cashier')
+                  .map((cashier) => (
+                    <div key={cashier.id} className="flex items-center justify-between gap-3 p-3.5 bg-white">
+                      <div className="flex items-center gap-3">
+                        <Avatar initials={cashier.initials} size={36} />
+                        <div>
+                          <div className="text-xs font-bold text-ink">{cashier.name}</div>
+                          <div className="text-[11px] text-muted">ID: {cashier.id} · PIN configured</div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={deletingCashierId === cashier.id}
+                        onClick={() => void handleDeleteCashier(cashier.id, cashier.name)}
+                        className="text-danger hover:bg-red-50 hover:border-red-200"
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </Card>
+        )}
+
         {!canWrite && (
-          <div className="lg:col-span-2"><Notice tone="info">Only store owners can change store settings. Sign in as <b>Store Owner</b> above to edit them.</Notice></div>
+          <div className="lg:col-span-2">
+            <Notice tone="info">
+              Only store owners can change store settings. Sign in with an owner account to edit them.
+            </Notice>
+          </div>
         )}
 
         <fieldset disabled={!canWrite || busy} className="contents">
@@ -281,6 +390,60 @@ export default function SettingsPage() {
         }}
         message="This permanently deletes every product, sale, and stock movement in the database and local storage. Export a backup first if you might need it. This can’t be undone."
       />
+
+      {/* Create Cashier Modal */}
+      <Dialog
+        open={addCashierOpen}
+        onClose={() => setAddCashierOpen(false)}
+        dismissible={!cashierBusy}
+        size="sm"
+        title="Create Cashier Account"
+        description="Add a staff cashier who can sign into the POS register using a numeric PIN."
+        footer={
+          <>
+            <Button onClick={() => setAddCashierOpen(false)} disabled={cashierBusy}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void handleCreateCashier()} loading={cashierBusy}>
+              <Plus size={15} /> Create Cashier
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreateCashier} className="space-y-4">
+          {cashierError && (
+            <div className="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-danger">
+              {cashierError}
+            </div>
+          )}
+
+          <TextField
+            label="Cashier full name"
+            type="text"
+            value={cashierName}
+            onChange={(e) => setCashierName(e.target.value)}
+            placeholder="e.g. Alex Morgan"
+            required
+            autoFocus
+          />
+
+          <div>
+            <TextField
+              label="6-digit Register PIN"
+              type="password"
+              inputMode="numeric"
+              value={cashierPin}
+              onChange={(e) => setCashierPin(e.target.value)}
+              placeholder="••••••"
+              maxLength={6}
+              required
+            />
+            <p className="mt-1 text-[11px] text-muted">The numeric PIN the cashier will enter to unlock the register.</p>
+          </div>
+
+          <button type="submit" className="hidden" tabIndex={-1} />
+        </form>
+      </Dialog>
     </>
   );
 }

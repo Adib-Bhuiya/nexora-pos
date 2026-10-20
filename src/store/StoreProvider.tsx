@@ -28,7 +28,6 @@ import {
 } from '@/lib/auth-api';
 import { computeTotals, changeDue } from '@/lib/calc';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { MOCK_USERS } from '@/config/constants';
 import { can as canDo, type Permission } from '@/config/permissions';
 import * as commands from '@/db/commands';
 import { loadSnapshot, type Snapshot } from '@/db/snapshot';
@@ -40,6 +39,7 @@ import type { Product, ProductInput, Sale, Settings, StockMovement, SyncOperatio
 import { useToast } from '@/components/ui/Toast';
 import { BootError, Splash } from '@/components/layout/Splash';
 import { InitialSetupModal } from '@/components/auth/InitialSetupModal';
+import { AuthScreen } from '@/components/auth/AuthScreen';
 
 interface StoreActions {
   createProduct(input: ProductInput): Promise<Product>;
@@ -112,10 +112,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [simulateFailure, setSimulateFailure] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const [initialized, setInitialized] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [initialized, setInitialized] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [liveUser, setLiveUser] = useState<User | null>(null);
-  const [staffUsers, setStaffUsers] = useState<User[]>(MOCK_USERS);
+  const [staffUsers, setStaffUsers] = useState<User[]>([]);
 
   const deviceOnline = useOnlineStatus();
   const online = deviceOnline && !simulatedOffline;
@@ -132,19 +133,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const status = await fetchAuthStatus();
       setInitialized(status.initialized);
       setAuthenticated(status.authenticated);
-      if (status.user) {
+      if (status.authenticated && status.user) {
         setLiveUser(status.user);
         if (status.user.role === 'owner') {
           try {
             const list = await fetchUsersApi();
             setStaffUsers(list);
-          } catch {}
+          } catch {
+            setStaffUsers([]);
+          }
+        } else {
+          setStaffUsers([]);
         }
       } else {
         setLiveUser(null);
+        setStaffUsers([]);
       }
+      return status;
     } catch (err) {
       console.error('Could not refresh auth status:', err);
+      setAuthenticated(false);
+      setLiveUser(null);
+      setStaffUsers([]);
+      throw err;
+    } finally {
+      setAuthLoading(false);
     }
   }, []);
 
@@ -196,6 +209,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const boot = useCallback(async () => {
     setBootError(null);
+    setAuthLoading(true);
     let finished = false;
     const safetyTimer = setTimeout(() => {
       if (!finished) {
@@ -204,8 +218,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, 10000);
     try {
       await ensureInitialized();
-      await refreshAuth();
-      await refresh();
+      let authStatus: Awaited<ReturnType<typeof fetchAuthStatus>> | null = null;
+      try {
+        authStatus = await refreshAuth();
+      } catch (err: any) {
+        console.error('Auth check error during boot:', err);
+        setBootError(err?.message || 'Failed to connect to authentication server. Click below to retry.');
+        finished = true;
+        clearTimeout(safetyTimer);
+        return;
+      }
+
+      if (authStatus?.authenticated) {
+        await refresh();
+      } else {
+        setSnap(await loadSnapshot());
+      }
       finished = true;
       clearTimeout(safetyTimer);
       // Ask the browser not to evict our data under storage pressure.
@@ -286,11 +314,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     else notify('You’re offline. Sales and stock changes are saved on this device and queued for sync.', { tone: 'warning' });
   }, [online, ready, pendingCount, notify]);
 
-  const user = useMemo(() => {
-    if (liveUser) return liveUser;
-    return staffUsers.find((u) => u.id === snap?.sessionUserId) ?? staffUsers[0] ?? MOCK_USERS[0];
-  }, [liveUser, staffUsers, snap?.sessionUserId]);
-  const actor = useMemo(() => ({ id: user.id, name: user.name }), [user.id, user.name]);
+  const user = liveUser;
+  const users = useMemo(() => {
+    if (!liveUser) return [];
+    if (liveUser.role === 'owner') {
+      const cashiers = staffUsers.filter((u) => u.id !== liveUser.id);
+      return [liveUser, ...cashiers];
+    }
+    return [liveUser];
+  }, [liveUser, staffUsers]);
+
+  const actor = useMemo(() => ({ id: user?.id ?? '', name: user?.name ?? '' }), [user?.id, user?.name]);
 
   const actions = useMemo<StoreActions>(() => {
     const run = async <T,>(fn: () => Promise<T>): Promise<T> => {
@@ -391,7 +425,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const saved = await saveSettingsApi(settings);
         return run(() => commands.saveSettings(saved));
       },
-      switchUser: (id) => run(() => commands.setSessionUser(id)),
+      switchUser: async () => {
+        throw new Error('Role switching requires credential verification. Please sign in with account credentials.');
+      },
       loginOwner: async (email, password) => {
         const u = await loginOwnerApi({ email, password });
         setLiveUser(u);
@@ -409,10 +445,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return u;
       },
       logout: async () => {
-        await logoutApi();
-        setLiveUser(null);
-        setAuthenticated(false);
-        await refreshAuth();
+        try {
+          await logoutApi();
+        } finally {
+          setLiveUser(null);
+          setAuthenticated(false);
+          setStaffUsers([]);
+          await refreshAuth().catch(() => undefined);
+        }
       },
       createCashier: async (name, pin) => {
         const u = await createCashierApi({ name, pin });
@@ -443,7 +483,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [actor, changed, refresh, refreshAuth, snap]);
 
   const value = useMemo<StoreValue | null>(() => {
-    if (!snap) return null;
+    if (!snap || !user) return null;
     return {
       products: snap.products,
       sales: snap.sales,
@@ -452,8 +492,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       settings: snap.settings,
       deviceId: snap.deviceId,
       user,
-      users: staffUsers.length > 0 ? staffUsers : MOCK_USERS,
-      initialized,
+      users,
+      initialized: initialized ?? false,
       authenticated,
       can: (p) => canDo(user.role, p),
       online,
@@ -479,14 +519,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       actions,
     };
-  }, [snap, user, staffUsers, initialized, authenticated, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions]);
+  }, [snap, user, users, initialized, authenticated, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions]);
 
   if (bootError) return <BootError message={bootError} onRetry={() => void boot()} />;
-  if (!value) return <Splash />;
+  if (authLoading || !snap) return <Splash />;
+
+  if (initialized === false) {
+    return (
+      <div id="app-root" className="min-h-dvh bg-bg">
+        <InitialSetupModal
+          open={true}
+          onComplete={(owner) => {
+            setLiveUser(owner);
+            setAuthenticated(true);
+            setInitialized(true);
+            void refreshAuth();
+            void refresh();
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!authenticated || !user || !value) {
+    return (
+      <div id="app-root" className="min-h-dvh bg-bg">
+        <AuthScreen
+          onLoginSuccess={(u) => {
+            setLiveUser(u);
+            setAuthenticated(true);
+            void refreshAuth();
+            void refresh();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <Ctx.Provider value={value}>
       {children}
-      <InitialSetupModal open={!initialized} onComplete={() => void refreshAuth()} />
     </Ctx.Provider>
   );
 }
