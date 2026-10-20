@@ -30,7 +30,10 @@ import {
   verifyPin,
   verifySetupKey,
 } from './security';
-
+import type {
+  UserRecord,
+  // keep all your existing imported types here
+} from './types';
 export class AuthError extends Error {
   constructor(
     message: string,
@@ -141,12 +144,30 @@ export class AuthService {
     const passwordHash = await hashPassword(input.password);
     const initials = computeInitials(input.name, 'OW');
 
-    const owner = await this.deps.userRepo.createOwner({
-      name: input.name.trim(),
-      email: normalizedEmail,
-      passwordHash,
-      initials,
-    });
+    
+let owner: UserRecord;
+
+try {
+  owner = await this.deps.userRepo.createOwner({
+    name: input.name.trim(),
+    email: normalizedEmail,
+    passwordHash,
+    initials,
+  });
+} catch (error) {
+  if (
+    error instanceof Error &&
+    (
+      error.message === 'A user with this email address already exists.' ||
+      error.message === 'A store owner has already been registered.'
+    )
+  ) {
+    throw new AuthError(error.message, 409);
+  }
+
+  throw error;
+}
+
 
     if (pinHash) {
       await this.deps.userRepo.updateUser(owner.id, { pinHash });

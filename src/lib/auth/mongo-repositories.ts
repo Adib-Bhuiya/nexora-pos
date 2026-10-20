@@ -22,6 +22,13 @@ import type {
   IRateLimitStore,
 } from './repositories';
 
+class RepositoryConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RepositoryConflictError';
+  }
+}
+
 function isDuplicateKeyError(err: unknown): boolean {
   if (typeof err === 'object' && err !== null) {
     if ('code' in err && (err as { code: unknown }).code === 11000) return true;
@@ -178,16 +185,22 @@ export class MongoUserRepository implements IUserRepository {
 
       return toUserRecord(doc);
     } catch (err: unknown) {
-      if (isDuplicateKeyError(err)) {
-        const msg = String(err).toLowerCase();
-        if (msg.includes('email')) {
-          throw new Error('A user with this email address already exists.');
-        }
-        // Unique partial index on { isOwner: 1 } collision
-        throw new Error('A store owner has already been registered.');
-      }
-      throw err;
+  if (isDuplicateKeyError(err)) {
+    const msg = String(err).toLowerCase();
+
+    if (msg.includes('email')) {
+      throw new RepositoryConflictError(
+        'A user with this email address already exists.'
+      );
     }
+
+    throw new RepositoryConflictError(
+      'A store owner has already been registered.'
+    );
+  }
+
+  throw err;
+}
   }
 
   async createCashier(data: CreateCashierInput): Promise<UserRecord> {
