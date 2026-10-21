@@ -3,6 +3,7 @@ import {
   MongoUserRepository,
   MongoSessionRepository,
   MongoRateLimitStore,
+  MongoPasswordResetTokenRepository,
 } from './mongo-repositories';
 
 export class AuthConfigurationError extends Error {
@@ -49,6 +50,7 @@ export function getOrCreateMongoRepositories(): AuthServiceDependencies {
       userRepo: new MongoUserRepository(),
       sessionRepo: new MongoSessionRepository(),
       rateLimitStore: new MongoRateLimitStore(),
+      passwordResetTokenRepo: new MongoPasswordResetTokenRepository(),
     };
   }
   return defaultMongoDependencies;

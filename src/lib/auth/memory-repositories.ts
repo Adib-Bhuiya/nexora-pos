@@ -2,7 +2,9 @@ import crypto from 'crypto';
 import type {
   CreateCashierInput,
   CreateOwnerInput,
+  CreatePasswordResetTokenInput,
   CreateSessionInput,
+  PasswordResetTokenRecord,
   PinAttemptResult,
   RateLimitResult,
   SafeUser,
@@ -12,6 +14,7 @@ import type {
   UserRecord,
 } from './types';
 import type {
+  IPasswordResetTokenRepository,
   IRateLimitStore,
   ISessionRepository,
   IUserRepository,
@@ -388,16 +391,68 @@ export class MemoryRateLimitStore implements IRateLimitStore {
 }
 
 /**
+ * In-memory password reset token repository for unit tests.
+ */
+export class MemoryPasswordResetTokenRepository implements IPasswordResetTokenRepository {
+  private tokens = new Map<string, PasswordResetTokenRecord>();
+
+  async createToken(data: CreatePasswordResetTokenInput): Promise<PasswordResetTokenRecord> {
+    const record: PasswordResetTokenRecord = {
+      id: `reset_${crypto.randomUUID()}`,
+      userId: data.userId,
+      email: data.email.trim().toLowerCase(),
+      tokenHash: data.tokenHash,
+      expiresAt: new Date(data.expiresAt),
+      consumedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.tokens.set(data.tokenHash, record);
+    return clone(record);
+  }
+
+  async consumeToken(tokenHash: string): Promise<PasswordResetTokenRecord | null> {
+    const token = this.tokens.get(tokenHash);
+    if (!token) return null;
+    if (token.consumedAt !== null) return null;
+    if (token.expiresAt.getTime() <= Date.now()) return null;
+
+    token.consumedAt = new Date();
+    token.updatedAt = new Date();
+    return clone(token);
+  }
+
+  async invalidateTokensForUser(userId: string): Promise<number> {
+    let count = 0;
+    const now = new Date();
+    for (const token of this.tokens.values()) {
+      if (token.userId === userId && token.consumedAt === null) {
+        token.consumedAt = now;
+        token.updatedAt = now;
+        count++;
+      }
+    }
+    return count;
+  }
+
+  clear(): void {
+    this.tokens.clear();
+  }
+}
+
+/**
  * Factory to instantiate a fresh set of in-memory auth repositories.
  */
 export function createMemoryAuthRepositories(): {
   userRepository: MemoryUserRepository;
   sessionRepository: MemorySessionRepository;
   rateLimitStore: MemoryRateLimitStore;
+  passwordResetTokenRepository: MemoryPasswordResetTokenRepository;
 } {
   return {
     userRepository: new MemoryUserRepository(),
     sessionRepository: new MemorySessionRepository(),
     rateLimitStore: new MemoryRateLimitStore(),
+    passwordResetTokenRepository: new MemoryPasswordResetTokenRepository(),
   };
 }

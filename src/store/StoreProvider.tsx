@@ -24,6 +24,7 @@ import {
   createCashierApi,
   updateUserApi,
   deleteUserApi,
+  resetCashierPinApi,
   type UpdateUserInput,
 } from '@/lib/auth-api';
 import { computeTotals, changeDue } from '@/lib/calc';
@@ -57,6 +58,7 @@ interface StoreActions {
   createCashier(name: string, pin: string): Promise<User>;
   updateUser(id: string, input: UpdateUserInput): Promise<User>;
   deleteUser(id: string): Promise<void>;
+  resetCashierPin(id: string, pin: string, confirmPin?: string): Promise<User>;
   refreshAuth(): Promise<void>;
   resetDemo(): Promise<void>;
   clearAll(): Promise<void>;
@@ -493,6 +495,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteUser: async (id) => {
         await deleteUserApi(id);
         await refreshAuth();
+      },
+      resetCashierPin: async (id, pin, confirmPin) => {
+        const u = await resetCashierPinApi(id, { pin, confirmPin });
+        await refreshAuth();
+        return u;
       },
       refreshAuth: async () => {
         await refreshAuth();

@@ -2,6 +2,8 @@ import type {
   CreateCashierInput,
   CreateOwnerInput,
   CreateSessionInput,
+  CreatePasswordResetTokenInput,
+  PasswordResetTokenRecord,
   PinAttemptResult,
   RateLimitResult,
   SafeUser,
@@ -145,4 +147,26 @@ export interface IRateLimitStore {
    * Reset or clear the rate limit counter for a key.
    */
   reset(key: string): Promise<void>;
+}
+
+/**
+ * Contract for password reset token persistence.
+ */
+export interface IPasswordResetTokenRepository {
+  /**
+   * Persists a hashed password reset token with expiration and user reference.
+   */
+  createToken(data: CreatePasswordResetTokenInput): Promise<PasswordResetTokenRecord>;
+
+  /**
+   * Atomically finds an active, unexpired, and unconsumed token by its hash,
+   * and marks it as consumed (consumedAt = now).
+   * Prevents concurrent consumption races. Returns null if invalid, expired, or already consumed.
+   */
+  consumeToken(tokenHash: string): Promise<PasswordResetTokenRecord | null>;
+
+  /**
+   * Invalidates any previously active reset tokens for a given user.
+   */
+  invalidateTokensForUser(userId: string): Promise<number>;
 }

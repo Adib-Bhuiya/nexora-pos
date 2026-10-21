@@ -207,3 +207,54 @@ export interface UpdateUserServiceInput {
   pin?: string;
 }
 
+/**
+ * Internal password reset token record.
+ */
+export interface PasswordResetTokenRecord {
+  id: string;
+  userId: string;
+  email: string;
+  tokenHash: string;
+  expiresAt: Date;
+  consumedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Input for creating a password reset token in the database.
+ */
+export interface CreatePasswordResetTokenInput {
+  userId: string;
+  email: string;
+  tokenHash: string;
+  expiresAt: Date;
+}
+
+/**
+ * Service input for initiating owner password recovery.
+ */
+export interface ForgotPasswordServiceInput {
+  email: string;
+  ipAddress?: string;
+  origin?: string;
+}
+
+/**
+ * Service input for completing owner password reset with token.
+ */
+export interface ResetPasswordServiceInput {
+  token: string;
+  password: string;
+  confirmPassword?: string;
+  ipAddress?: string;
+}
+
+/**
+ * Service input for owner resetting a cashier's PIN.
+ */
+export interface ResetCashierPinServiceInput {
+  pin: string;
+  confirmPin?: string;
+}
+

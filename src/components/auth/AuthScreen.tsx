@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { LogIn, KeyRound, Shield, AlertTriangle, UserCheck } from 'lucide-react';
+import { LogIn, KeyRound, Shield, AlertTriangle, UserCheck, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/Fields';
 import { useToast } from '@/components/ui/Toast';
 import { BRAND } from '@/config/brand';
-import { loginOwnerApi, loginPinApi } from '@/lib/auth-api';
+import { loginOwnerApi, loginPinApi, forgotPasswordApi } from '@/lib/auth-api';
 import type { User } from '@/types';
 import { cn } from '@/lib/cn';
 
@@ -23,6 +23,13 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [ownerBusy, setOwnerBusy] = useState(false);
   const [ownerError, setOwnerError] = useState<string | null>(null);
+
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
 
   // Cashier form state
   const [cashierId, setCashierId] = useState('');
@@ -83,6 +90,26 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }
   };
 
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your owner email address.');
+      return;
+    }
+
+    setForgotBusy(true);
+    setForgotError(null);
+    setForgotSuccess(null);
+    try {
+      const res = await forgotPasswordApi(forgotEmail.trim());
+      setForgotSuccess(res.message);
+    } catch (err: any) {
+      setForgotError(err?.message || 'Failed to request password reset link.');
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-[#f5f7fa] px-4 py-8">
       <div className="w-full max-w-md">
@@ -107,11 +134,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               type="button"
               onClick={() => {
                 setTab('owner');
+                setShowForgotPassword(false);
                 setOwnerError(null);
               }}
               className={cn(
                 'flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all duration-150',
-                tab === 'owner'
+                tab === 'owner' && !showForgotPassword
                   ? 'bg-white text-brand shadow-sm font-extrabold'
                   : 'text-muted hover:text-ink'
               )}
@@ -122,11 +150,12 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               type="button"
               onClick={() => {
                 setTab('cashier');
+                setShowForgotPassword(false);
                 setCashierError(null);
               }}
               className={cn(
                 'flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all duration-150',
-                tab === 'cashier'
+                tab === 'cashier' && !showForgotPassword
                   ? 'bg-white text-brand shadow-sm font-extrabold'
                   : 'text-muted hover:text-ink'
               )}
@@ -136,7 +165,93 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </div>
 
           <div className="p-6">
-            {tab === 'owner' ? (
+            {showForgotPassword ? (
+              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setForgotError(null);
+                      setForgotSuccess(null);
+                    }}
+                    className="mb-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"
+                  >
+                    <ArrowLeft size={13} /> Back to Sign In
+                  </button>
+                  <h2 className="text-base font-extrabold text-ink">Reset Owner Password</h2>
+                  <p className="text-xs text-muted">
+                    Enter your registered store owner email address to receive a secure recovery link.
+                  </p>
+                </div>
+
+                {forgotError && (
+                  <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-xs font-semibold text-danger">
+                    <AlertTriangle size={15} className="shrink-0" />
+                    <span>{forgotError}</span>
+                  </div>
+                )}
+
+                {forgotSuccess ? (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-medium text-emerald-900">
+                      <div className="flex items-center gap-2 font-bold text-emerald-800 mb-1">
+                        <CheckCircle size={16} /> Recovery Link Dispatched
+                      </div>
+                      <p className="leading-relaxed">{forgotSuccess}</p>
+                      <p className="mt-2 text-[11px] text-emerald-700">
+                        For security, the recovery link expires in 15 minutes and can only be used once.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setForgotSuccess(null);
+                      }}
+                      className="w-full py-2.5 font-bold"
+                    >
+                      Return to Sign In
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <TextField
+                      label="Store Owner Email"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="owner@store.com"
+                      autoComplete="email"
+                      required
+                    />
+
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      loading={forgotBusy}
+                      className="w-full py-2.5 font-bold"
+                    >
+                      <Mail size={15} /> Send Recovery Link
+                    </Button>
+
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowForgotPassword(false);
+                          setForgotError(null);
+                        }}
+                        className="text-xs font-semibold text-muted hover:text-ink"
+                      >
+                        Cancel and return to sign in
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+            ) : tab === 'owner' ? (
               <form onSubmit={handleOwnerSubmit} className="space-y-4">
                 <div>
                   <h2 className="text-base font-extrabold text-ink">Owner Sign In</h2>
@@ -171,6 +286,22 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   autoComplete="current-password"
                   required
                 />
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted">Registered store owner</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(true);
+                      setForgotEmail(email);
+                      setForgotError(null);
+                      setForgotSuccess(null);
+                    }}
+                    className="font-semibold text-brand hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
 
                 <Button
                   type="submit"

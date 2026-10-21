@@ -5,3 +5,4 @@ export * from './mongo-repositories';
 export * from './security';
 export * from './service';
 export * from './container';
+export * from './email';

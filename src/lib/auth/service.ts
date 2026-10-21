@@ -1,14 +1,19 @@
+import crypto from 'crypto';
 import type {
   IUserRepository,
   ISessionRepository,
   IRateLimitStore,
+  IPasswordResetTokenRepository,
 } from './repositories';
 import type {
   AuthContext,
   AuthResult,
   CreateCashierServiceInput,
+  ForgotPasswordServiceInput,
   LoginOwnerServiceInput,
   LoginPinServiceInput,
+  ResetCashierPinServiceInput,
+  ResetPasswordServiceInput,
   SafeUser,
   SetupOwnerServiceInput,
   UpdateUserServiceInput,
@@ -30,10 +35,7 @@ import {
   verifyPin,
   verifySetupKey,
 } from './security';
-import type {
-  UserRecord,
-  // keep all your existing imported types here
-} from './types';
+import { sendPasswordResetEmail } from './email';
 export class AuthError extends Error {
   constructor(
     message: string,
@@ -79,6 +81,8 @@ export interface AuthServiceDependencies {
   userRepo: IUserRepository;
   sessionRepo: ISessionRepository;
   rateLimitStore: IRateLimitStore;
+  passwordResetTokenRepo?: IPasswordResetTokenRepository;
+  emailSender?: (to: string, resetUrl: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 /**
@@ -549,6 +553,12 @@ try {
       await this.deps.sessionRepo.revokeAllUserSessions(targetUserId);
     }
 
+    if (pinHash) {
+      // Resetting/updating PIN revokes existing sessions and clears any lockout
+      await this.deps.sessionRepo.revokeAllUserSessions(targetUserId);
+      await this.deps.userRepo.resetFailedPinAttempts(targetUserId);
+    }
+
     const updated = await this.deps.userRepo.updateUser(targetUserId, {
       name: updates.name,
       active: updates.active,
@@ -557,10 +567,6 @@ try {
 
     if (!updated) {
       throw new AuthNotFoundError('User not found.');
-    }
-
-    if (pinHash) {
-      await this.deps.userRepo.resetFailedPinAttempts(targetUserId);
     }
 
     return toSafeUser(updated);
@@ -585,5 +591,264 @@ try {
 
     await this.deps.sessionRepo.revokeAllUserSessions(targetUserId);
     return this.deps.userRepo.deleteCashier(targetUserId);
+  }
+
+  // --- Password Recovery & Cashier PIN Reset ---
+
+  /**
+   * Initiates owner password recovery by verifying email, applying rate limits,
+   * generating a secure 256-bit token, storing only its SHA-256 hash, and emailing
+   * the reset link via Resend.
+   *
+   * Always returns a generic success message to prevent user enumeration attacks.
+   */
+  async forgotPassword(input: ForgotPasswordServiceInput): Promise<{ message: string }> {
+    const GENERIC_SUCCESS =
+      'If an owner account with that email exists, password reset instructions have been sent.';
+
+    const ip = input.ipAddress || '127.0.0.1';
+    const normalizedEmail = (input.email || '').trim().toLowerCase();
+
+    // 1. IP-level rate limiting (5 attempts per 15 minutes)
+    const ipCheck = await this.deps.rateLimitStore.consume(
+      `forgot_ip:${ip}`,
+      5,
+      15 * 60 * 1000
+    );
+    if (!ipCheck.allowed) {
+      throw new AuthRateLimitError(
+        `Too many password reset requests from this network. Please try again in ${ipCheck.retryAfterSec ?? 900} seconds.`,
+        ipCheck.retryAfterSec ?? 900
+      );
+    }
+
+    // 2. Email-level rate limiting if email is provided (3 attempts per 15 minutes)
+    if (normalizedEmail) {
+      const emailCheck = await this.deps.rateLimitStore.consume(
+        `forgot_email:${normalizedEmail}`,
+        3,
+        15 * 60 * 1000
+      );
+      if (!emailCheck.allowed) {
+        throw new AuthRateLimitError(
+          `Too many reset requests for this email address. Please try again in ${emailCheck.retryAfterSec ?? 900} seconds.`,
+          emailCheck.retryAfterSec ?? 900
+        );
+      }
+    }
+
+    // 3. Validation: basic email format check
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return { message: GENERIC_SUCCESS };
+    }
+
+    // 4. Query user by email
+    const user = await this.deps.userRepo.findByEmail(normalizedEmail);
+
+    // Only actual, active store owner accounts can request password resets
+    if (!user || (!user.isOwner && user.role !== 'owner') || !user.active) {
+      return { message: GENERIC_SUCCESS };
+    }
+
+    // 5. Check email provider configuration
+    const isEmailConfigured =
+      Boolean(this.deps.emailSender) ||
+      Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim());
+
+    if (!isEmailConfigured) {
+      throw new AuthError(
+        'Email delivery service is currently not configured on this server.',
+        503
+      );
+    }
+
+    const tokenRepo = this.deps.passwordResetTokenRepo;
+    if (!tokenRepo) {
+      throw new AuthConfigurationError(
+        'Password reset token repository is not configured.'
+      );
+    }
+
+    // 6. Invalidate previous active tokens for this owner to prevent token accumulation
+    await tokenRepo.invalidateTokensForUser(user.id);
+
+    // 7. Generate cryptographically secure random token (32 bytes = 256 bits)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // 8. Store token hash with 15-minute expiration
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await tokenRepo.createToken({
+      userId: user.id,
+      email: user.email,
+      tokenHash,
+      expiresAt,
+    });
+
+    // 9. Construct reset URL using trusted, configured application base URL (never arbitrary Host headers)
+    const baseUrl =
+      process.env.APP_BASE_URL ||
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      'http://localhost:3000';
+    const cleanBase = baseUrl.replace(/\/+$/, '');
+    const resetUrl = `${cleanBase}/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+    // 10. Dispatch email via custom emailSender or official Resend SDK
+    if (this.deps.emailSender) {
+      const sendResult = await this.deps.emailSender(user.email, resetUrl);
+      if (!sendResult.success) {
+        throw new AuthError(
+          sendResult.error || 'Failed to dispatch password reset email.',
+          500
+        );
+      }
+    } else {
+      const sendResult = await sendPasswordResetEmail(user.email, resetUrl);
+      if (!sendResult.success) {
+        throw new AuthError(
+          sendResult.error || 'Failed to deliver password reset email.',
+          500
+        );
+      }
+    }
+
+    return { message: GENERIC_SUCCESS };
+  }
+
+  /**
+   * Completes owner password reset using single-use token.
+   * Atomically consumes the token, validates expiry and owner role,
+   * updates password hash with bcrypt, revokes all active owner sessions,
+   * and requires a fresh login.
+   */
+  async resetPassword(input: ResetPasswordServiceInput): Promise<{ message: string }> {
+    const ip = input.ipAddress || '127.0.0.1';
+
+    // 1. IP rate limiting (10 attempts per 15 minutes)
+    const ipCheck = await this.deps.rateLimitStore.consume(
+      `reset_ip:${ip}`,
+      10,
+      15 * 60 * 1000
+    );
+    if (!ipCheck.allowed) {
+      throw new AuthRateLimitError(
+        `Too many password reset attempts. Please try again in ${ipCheck.retryAfterSec ?? 900} seconds.`,
+        ipCheck.retryAfterSec ?? 900
+      );
+    }
+
+    if (!input.token || typeof input.token !== 'string' || !input.token.trim()) {
+      throw new AuthError('Reset token is required.');
+    }
+
+    if (!input.password || input.password.length < 8) {
+      throw new AuthError('Owner password must be at least 8 characters in length.');
+    }
+
+    if (input.confirmPassword !== undefined && input.password !== input.confirmPassword) {
+      throw new AuthError('Passwords do not match.');
+    }
+
+    const tokenRepo = this.deps.passwordResetTokenRepo;
+    if (!tokenRepo) {
+      throw new AuthConfigurationError(
+        'Password reset token repository is not configured.'
+      );
+    }
+
+    // 2. Hash raw token using SHA-256 for lookup
+    const tokenHash = crypto.createHash('sha256').update(input.token.trim()).digest('hex');
+
+    // 3. Atomically consume token (finds active unexpired token and sets consumedAt = now)
+    const tokenRecord = await tokenRepo.consumeToken(tokenHash);
+    if (!tokenRecord) {
+      throw new AuthError(
+        'Invalid, expired, or already-used password reset link. Please request a new one.',
+        400
+      );
+    }
+
+    // 4. Explicit expiry check in application layer
+    if (tokenRecord.expiresAt.getTime() <= Date.now()) {
+      throw new AuthError('Password reset link has expired.', 400);
+    }
+
+    // 5. Verify the account being reset is the store owner account
+    const user = await this.deps.userRepo.findById(tokenRecord.userId);
+    if (!user || (!user.isOwner && user.role !== 'owner')) {
+      throw new AuthForbiddenError('Password reset is permitted only for the store owner account.');
+    }
+
+    // 6. Hash new password with bcrypt
+    const passwordHash = await hashPassword(input.password);
+
+    // 7. Update user's password in database
+    await this.deps.userRepo.updateUser(user.id, { passwordHash });
+
+    // 8. Revoke all existing sessions for this owner across all devices
+    await this.deps.sessionRepo.revokeAllUserSessions(user.id);
+
+    // 9. Invalidate any remaining tokens for this user
+    await tokenRepo.invalidateTokensForUser(user.id);
+
+    return {
+      message: 'Password has been reset successfully. Please sign in with your new password.',
+    };
+  }
+
+  /**
+   * Resets a cashier's PIN by the authenticated store owner.
+   * Validates 6-digit PIN rules, hashes with bcrypt, resets failed attempts,
+   * clears lockout, and revokes all existing sessions for that cashier.
+   */
+  async resetCashierPin(
+    actor: SafeUser,
+    targetUserId: string,
+    input: ResetCashierPinServiceInput
+  ): Promise<SafeUser> {
+    if (actor.role !== 'owner') {
+      throw new AuthForbiddenError('Only store owners can reset cashier PINs.');
+    }
+
+    const targetUser = await this.deps.userRepo.findById(targetUserId);
+    if (!targetUser) {
+      throw new AuthNotFoundError('Cashier account not found.');
+    }
+
+    if (targetUser.isOwner || targetUser.role === 'owner') {
+      throw new AuthForbiddenError('Store owner credentials cannot be reset via cashier PIN reset.');
+    }
+
+    if (!input.pin || typeof input.pin !== 'string' || !input.pin.trim()) {
+      throw new AuthError('PIN is required.');
+    }
+
+    if (input.confirmPin !== undefined && input.pin.trim() !== input.confirmPin.trim()) {
+      throw new AuthError('PIN confirmation does not match.');
+    }
+
+    const pinValidation = validatePin(input.pin);
+    if (!pinValidation.valid) {
+      throw new AuthError(pinValidation.reason || 'Invalid PIN.');
+    }
+
+    const pinHash = await hashPin(input.pin.trim());
+
+    // Revoke all active sessions for this cashier so they must sign in with new PIN
+    await this.deps.sessionRepo.revokeAllUserSessions(targetUserId);
+
+    // Reset failed attempts and clear lockout
+    await this.deps.userRepo.resetFailedPinAttempts(targetUserId);
+
+    const updated = await this.deps.userRepo.updateUser(targetUserId, {
+      pinHash,
+    });
+
+    if (!updated) {
+      throw new AuthNotFoundError('Cashier account not found.');
+    }
+
+    return toSafeUser(updated);
   }
 }

@@ -2,11 +2,14 @@ import mongoose from 'mongoose';
 import User from '@/models/User';
 import Session from '@/models/Session';
 import RateLimit from '@/models/RateLimit';
+import PasswordResetToken from '@/models/PasswordResetToken';
 import { connectDB } from '@/lib/mongodb';
 import type {
   CreateCashierInput,
   CreateOwnerInput,
+  CreatePasswordResetTokenInput,
   CreateSessionInput,
+  PasswordResetTokenRecord,
   PinAttemptResult,
   RateLimitResult,
   SafeUser,
@@ -20,6 +23,7 @@ import type {
   IUserRepository,
   ISessionRepository,
   IRateLimitStore,
+  IPasswordResetTokenRepository,
 } from './repositories';
 
 class RepositoryConflictError extends Error {
@@ -528,6 +532,82 @@ export class MongoRateLimitStore implements IRateLimitStore {
   }
 }
 
+interface MongoResetTokenDoc {
+  _id: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId | string;
+  email: string;
+  tokenHash: string;
+  expiresAt: Date | string;
+  consumedAt: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+function toResetTokenRecord(doc: MongoResetTokenDoc): PasswordResetTokenRecord {
+  return {
+    id: doc._id.toString(),
+    userId: doc.userId.toString(),
+    email: doc.email,
+    tokenHash: doc.tokenHash,
+    expiresAt: new Date(doc.expiresAt),
+    consumedAt: doc.consumedAt ? new Date(doc.consumedAt) : null,
+    createdAt: new Date(doc.createdAt),
+    updatedAt: new Date(doc.updatedAt),
+  };
+}
+
+/**
+ * MongoDB-backed repository for password reset tokens.
+ * Provides atomic single-use consumption and explicit expiration checks.
+ */
+export class MongoPasswordResetTokenRepository implements IPasswordResetTokenRepository {
+  async createToken(data: CreatePasswordResetTokenInput): Promise<PasswordResetTokenRecord> {
+    await connectDB();
+    const doc = (await PasswordResetToken.create({
+      userId: data.userId,
+      email: data.email.trim().toLowerCase(),
+      tokenHash: data.tokenHash,
+      expiresAt: data.expiresAt,
+      consumedAt: null,
+    })) as MongoResetTokenDoc;
+
+    return toResetTokenRecord(doc);
+  }
+
+  async consumeToken(tokenHash: string): Promise<PasswordResetTokenRecord | null> {
+    await connectDB();
+    const now = new Date();
+    // Atomic update ensures single-use and concurrency protection
+    const doc = (await PasswordResetToken.findOneAndUpdate(
+      {
+        tokenHash,
+        consumedAt: null,
+        expiresAt: { $gt: now },
+      },
+      {
+        $set: { consumedAt: now },
+      },
+      { new: true }
+    ).lean()) as MongoResetTokenDoc | null;
+
+    return doc ? toResetTokenRecord(doc) : null;
+  }
+
+  async invalidateTokensForUser(userId: string): Promise<number> {
+    await connectDB();
+    const res = await PasswordResetToken.updateMany(
+      {
+        userId,
+        consumedAt: null,
+      },
+      {
+        $set: { consumedAt: new Date() },
+      }
+    );
+    return res.modifiedCount;
+  }
+}
+
 /**
  * Instantiates the production MongoDB repository instances.
  */
@@ -535,10 +615,12 @@ export function createMongoAuthRepositories(): {
   userRepository: MongoUserRepository;
   sessionRepository: MongoSessionRepository;
   rateLimitStore: MongoRateLimitStore;
+  passwordResetTokenRepository: MongoPasswordResetTokenRepository;
 } {
   return {
     userRepository: new MongoUserRepository(),
     sessionRepository: new MongoSessionRepository(),
     rateLimitStore: new MongoRateLimitStore(),
+    passwordResetTokenRepository: new MongoPasswordResetTokenRepository(),
   };
 }

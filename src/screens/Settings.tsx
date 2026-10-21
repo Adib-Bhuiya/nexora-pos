@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, CircleX, Download, Plus, Receipt as ReceiptIcon, RefreshCw, ShieldAlert, X } from 'lucide-react';
+import { Check, CircleX, Download, KeyRound, Plus, Receipt as ReceiptIcon, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import { Receipt } from '@/components/receipt/Receipt';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHead, EmptyState, Notice, PageHeader } from '@/components/ui/Card';
@@ -37,6 +37,57 @@ export default function SettingsPage() {
   const [cashierBusy, setCashierBusy] = useState(false);
   const [cashierError, setCashierError] = useState<string | null>(null);
   const [deletingCashierId, setDeletingCashierId] = useState<string | null>(null);
+
+  // Reset PIN modal state
+  const [resetPinCashier, setResetPinCashier] = useState<User | null>(null);
+  const [resetNewPin, setResetNewPin] = useState('');
+  const [resetConfirmPin, setResetConfirmPin] = useState('');
+  const [resetPinBusy, setResetPinBusy] = useState(false);
+  const [resetPinError, setResetPinError] = useState<string | null>(null);
+
+  const openResetPin = (cashier: User) => {
+    setResetPinCashier(cashier);
+    setResetNewPin('');
+    setResetConfirmPin('');
+    setResetPinError(null);
+  };
+
+  const handleResetPinSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!resetPinCashier) return;
+
+    const p = resetNewPin.trim();
+    const cp = resetConfirmPin.trim();
+
+    if (!p) {
+      setResetPinError('New PIN is required.');
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(p)) {
+      setResetPinError('PIN must be 4 to 6 numeric digits.');
+      return;
+    }
+
+    if (p !== cp) {
+      setResetPinError('PIN confirmation does not match.');
+      return;
+    }
+
+    setResetPinBusy(true);
+    setResetPinError(null);
+    try {
+      await actions.resetCashierPin(resetPinCashier.id, p, cp);
+      notify(`PIN for ${resetPinCashier.name} has been reset successfully.`, { tone: 'success' });
+      setResetPinCashier(null);
+      setResetNewPin('');
+      setResetConfirmPin('');
+    } catch (err: any) {
+      setResetPinError(err?.message || 'Failed to reset cashier PIN.');
+    } finally {
+      setResetPinBusy(false);
+    }
+  };
 
   const handleCreateCashier = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -233,15 +284,25 @@ export default function SettingsPage() {
                           <div className="text-[11px] text-muted">ID: {cashier.id} · PIN configured</div>
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={deletingCashierId === cashier.id}
-                        onClick={() => void handleDeleteCashier(cashier.id, cashier.name)}
-                        className="text-danger hover:bg-red-50 hover:border-red-200"
-                      >
-                        Delete
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openResetPin(cashier)}
+                          className="text-xs font-semibold"
+                        >
+                          <KeyRound size={13} className="mr-1" /> Reset PIN
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={deletingCashierId === cashier.id}
+                          onClick={() => void handleDeleteCashier(cashier.id, cashier.name)}
+                          className="text-danger hover:bg-red-50 hover:border-red-200"
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   ))}
               </div>
@@ -439,6 +500,80 @@ export default function SettingsPage() {
               required
             />
             <p className="mt-1 text-[11px] text-muted">The numeric PIN the cashier will enter to unlock the register.</p>
+          </div>
+
+          <button type="submit" className="hidden" tabIndex={-1} />
+        </form>
+      </Dialog>
+
+      {/* Reset Cashier PIN Modal */}
+      <Dialog
+        open={Boolean(resetPinCashier)}
+        onClose={() => {
+          if (!resetPinBusy) setResetPinCashier(null);
+        }}
+        dismissible={!resetPinBusy}
+        size="sm"
+        title="Reset Cashier PIN"
+        description={
+          resetPinCashier
+            ? `Set a new 4 to 6 digit register PIN for ${resetPinCashier.name} (ID: ${resetPinCashier.id}). Any existing active sessions will be revoked.`
+            : 'Reset Cashier PIN'
+        }
+        footer={
+          <>
+            <Button
+              onClick={() => setResetPinCashier(null)}
+              disabled={resetPinBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void handleResetPinSubmit()}
+              loading={resetPinBusy}
+            >
+              <KeyRound size={15} /> Save New PIN
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleResetPinSubmit} className="space-y-4">
+          {resetPinError && (
+            <div className="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-danger">
+              {resetPinError}
+            </div>
+          )}
+
+          <div>
+            <TextField
+              label="New 6-digit Register PIN"
+              type="password"
+              inputMode="numeric"
+              value={resetNewPin}
+              onChange={(e) => setResetNewPin(e.target.value)}
+              placeholder="••••••"
+              maxLength={6}
+              required
+              autoFocus
+            />
+            <p className="mt-1 text-[11px] text-muted">
+              Must be 4 to 6 numeric digits (non-sequential, non-repeating).
+            </p>
+          </div>
+
+          <div>
+            <TextField
+              label="Confirm New PIN"
+              type="password"
+              inputMode="numeric"
+              value={resetConfirmPin}
+              onChange={(e) => setResetConfirmPin(e.target.value)}
+              placeholder="••••••"
+              maxLength={6}
+              required
+            />
+            <p className="mt-1 text-[11px] text-muted">Re-enter the PIN to confirm.</p>
           </div>
 
           <button type="submit" className="hidden" tabIndex={-1} />
