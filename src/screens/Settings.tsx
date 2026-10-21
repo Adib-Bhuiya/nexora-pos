@@ -17,7 +17,7 @@ import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { downloadFile } from '@/lib/csv';
 import { validateSettingsDraft, type Errors, type SettingsDraft } from '@/lib/validation';
 import { useStore, userMessage } from '@/store/StoreProvider';
-import type { Sale, Settings as SettingsType } from '@/types';
+import type { Sale, Settings as SettingsType, User } from '@/types';
 
 const toDraft = (s: SettingsType): SettingsDraft => ({ ...s, taxRate: String(s.taxRate), lowStockThreshold: String(s.lowStockThreshold) });
 

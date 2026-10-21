@@ -17,6 +17,7 @@ import type {
   SafeUser,
   SetupOwnerServiceInput,
   UpdateUserServiceInput,
+  UserRecord,
   UserRole,
 } from './types';
 import { toSafeUser } from './memory-repositories';
@@ -43,6 +44,15 @@ export class AuthError extends Error {
   ) {
     super(message);
     this.name = 'AuthError';
+  }
+}
+
+export class AuthConfigurationError extends AuthError {
+  constructor(
+    message: string = 'Production authentication repository is not configured.'
+  ) {
+    super(message, 503);
+    this.name = 'AuthConfigurationError';
   }
 }
 

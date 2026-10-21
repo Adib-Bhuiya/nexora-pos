@@ -1,4 +1,4 @@
-import { AuthService, type AuthServiceDependencies } from './service';
+import { AuthService, AuthConfigurationError, type AuthServiceDependencies } from './service';
 import {
   MongoUserRepository,
   MongoSessionRepository,
@@ -6,14 +6,7 @@ import {
   MongoPasswordResetTokenRepository,
 } from './mongo-repositories';
 
-export class AuthConfigurationError extends Error {
-  constructor(
-    message: string = 'Production authentication repository is not configured.'
-  ) {
-    super(message);
-    this.name = 'AuthConfigurationError';
-  }
-}
+export { AuthConfigurationError };
 
 let activeDependencies: AuthServiceDependencies | null = null;
 let defaultMongoDependencies: AuthServiceDependencies | null = null;
