@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Image as ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { SelectField, TextField } from '@/components/ui/Fields';
 import { useToast } from '@/components/ui/Toast';
 import { useFormat } from '@/hooks/useFormat';
 import { parseNumber } from '@/lib/calc';
+import { uploadProductImageApi } from '@/lib/product-api';
 import { validateProductDraft, type Errors, type ProductDraft } from '@/lib/validation';
 import { useStore, userMessage } from '@/store/StoreProvider';
 import type { Product } from '@/types';
@@ -21,6 +23,15 @@ const blank = (category: string): ProductDraft => ({
   stock: '0',
 });
 
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+];
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
 export function ProductFormDialog({
   open,
   product,
@@ -33,6 +44,7 @@ export function ProductFormDialog({
   const { products, settings, actions } = useStore();
   const { notify } = useToast();
   const f = useFormat();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = [
     ...new Set([
@@ -49,10 +61,18 @@ export function ProductFormDialog({
   const [errors, setErrors] = useState<Errors<keyof ProductDraft>>({});
   const [busy, setBusy] = useState(false);
 
+  // Image source mode: 'upload' or 'url'
+  const [imageMode, setImageMode] = useState<'upload' | 'url'>('upload');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewBroken, setPreviewBroken] = useState(false);
+
   useEffect(() => {
     if (!open) return;
 
     setErrors({});
+    setUploadError(null);
+    setPreviewBroken(false);
 
     if (product) {
       setDraft({
@@ -67,10 +87,12 @@ export function ProductFormDialog({
 
       setImageUrl(product.imageUrl ?? '');
       setTone(product.tone || 'blue');
+      setImageMode(product.imageUrl?.startsWith('http') ? 'url' : 'upload');
     } else {
       setDraft(blank(settings.categories[0] ?? ''));
       setImageUrl('');
       setTone('blue');
+      setImageMode('upload');
     }
   }, [open, product, settings.categories]);
 
@@ -89,6 +111,52 @@ export function ProductFormDialog({
       }
     };
 
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setUploadError(
+        'Invalid file type. Please upload a JPEG, PNG, WebP, GIF, or AVIF image.',
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setUploadError('Image exceeds the maximum allowed size of 5 MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const secureUrl = await uploadProductImageApi(file);
+      setImageUrl(secureUrl);
+      setPreviewBroken(false);
+      notify('Image uploaded successfully.', { tone: 'success' });
+    } catch (err) {
+      setUploadError(userMessage(err));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleUrlChange = (val: string) => {
+    setImageUrl(val);
+    setPreviewBroken(false);
+    setUploadError(null);
+  };
+
+  const handleRemoveImage = () => {
+    setImageUrl('');
+    setPreviewBroken(false);
+    setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const price = parseNumber(draft.price);
   const cost = parseNumber(draft.cost);
 
@@ -101,6 +169,8 @@ export function ProductFormDialog({
 
   const submit = async (event?: React.FormEvent) => {
     event?.preventDefault();
+
+    if (uploading) return;
 
     const { errors: validationErrors, value } =
       validateProductDraft(draft, products, product?.id);
@@ -143,7 +213,7 @@ export function ProductFormDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      dismissible={!busy}
+      dismissible={!busy && !uploading}
       size="md"
       title={product ? 'Edit product' : 'Add product'}
       description={
@@ -153,13 +223,14 @@ export function ProductFormDialog({
       }
       footer={
         <>
-          <Button onClick={onClose} disabled={busy}>
+          <Button onClick={onClose} disabled={busy || uploading}>
             Cancel
           </Button>
           <Button
             variant="primary"
             onClick={() => void submit()}
             loading={busy}
+            disabled={uploading}
           >
             {product ? 'Save changes' : 'Add product'}
           </Button>
@@ -256,32 +327,140 @@ export function ProductFormDialog({
           }
         />
 
-        <div className="sm:col-span-2">
-          <TextField
-            label="Product image URL (optional)"
-            value={imageUrl}
-            onChange={(event) => setImageUrl(event.target.value)}
-            placeholder="https://example.com/product-image.jpg"
-            autoComplete="url"
-          />
+        <TextField
+          label="Display tone"
+          value={tone}
+          onChange={(event) => setTone(event.target.value)}
+          placeholder="e.g. #e0f2fe or blue"
+          autoComplete="off"
+        />
 
-          <TextField
-            label="Display tone"
-            value={tone}
-            onChange={(event) => setTone(event.target.value)}
-            placeholder="blue"
-            autoComplete="off"
-          />
+        {/* Product Image Section: Upload file or URL */}
+        <div className="sm:col-span-2 space-y-3 rounded-xl border border-line bg-[#f8fafc] p-3.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-ink">Product Image</span>
+            <div className="inline-flex rounded-lg bg-[#edf0f4] p-0.5 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setImageMode('upload')}
+                className={`rounded-md px-2.5 py-1 transition-colors ${
+                  imageMode === 'upload'
+                    ? 'bg-white text-ink shadow-sm'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageMode('url')}
+                className={`rounded-md px-2.5 py-1 transition-colors ${
+                  imageMode === 'url'
+                    ? 'bg-white text-ink shadow-sm'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                Image URL
+              </button>
+            </div>
+          </div>
+
+          {imageMode === 'upload' ? (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                onChange={handleFileChange}
+                className="hidden"
+                disabled={uploading || busy}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || busy}
+                className="flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#c8d1de] bg-white p-4 text-center transition-colors hover:border-brand hover:bg-brand/5 active:scale-[.99] disabled:opacity-60"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 size={22} className="animate-spin text-brand" />
+                    <span className="text-xs font-bold text-brand">
+                      Uploading image to Cloudinary...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={22} className="text-muted" />
+                    <span className="text-xs font-semibold text-ink">
+                      Choose an image file to upload
+                    </span>
+                    <span className="text-[11px] text-muted">
+                      JPEG, PNG, WebP, GIF, or AVIF (up to 5 MB)
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div>
+              <TextField
+                label="Image URL"
+                value={imageUrl}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                placeholder="https://example.com/product-image.jpg"
+                autoComplete="url"
+                disabled={uploading || busy}
+              />
+              <p className="mt-1 text-[11px] text-muted">
+                Must be a publicly accessible HTTP or HTTPS link.
+              </p>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-danger">
+              {uploadError}
+            </div>
+          )}
 
           {imageUrl.trim() && (
-            <div className="mt-3">
-              <p className="mb-2 text-xs text-muted">Image preview</p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl.trim()}
-                alt="Product preview"
-                className="h-24 w-24 rounded-lg border border-line object-cover"
-              />
+            <div className="flex items-center gap-3.5 rounded-lg border border-line bg-white p-2.5">
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-line bg-[#f1f5f9]">
+                {!previewBroken ? (
+                  <img
+                    src={imageUrl.trim()}
+                    alt="Preview"
+                    className="h-full w-full object-cover"
+                    onError={() => setPreviewBroken(true)}
+                  />
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center text-muted">
+                    <ImageIcon size={20} />
+                    <span className="text-[9px]">Broken URL</span>
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-semibold text-ink">
+                  {imageUrl.startsWith('https://res.cloudinary.com')
+                    ? 'Cloudinary Hosted Image'
+                    : imageUrl}
+                </div>
+                <div className="mt-0.5 text-[11px] text-muted">
+                  {previewBroken
+                    ? 'Unable to load preview from this URL.'
+                    : 'Preview loaded successfully.'}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleRemoveImage}
+                disabled={uploading || busy}
+                className="text-danger hover:bg-red-50 hover:border-red-200"
+              >
+                <X size={13} className="mr-1" /> Remove
+              </Button>
             </div>
           )}
         </div>

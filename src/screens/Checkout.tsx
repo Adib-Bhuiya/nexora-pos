@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Minus, PackageSearch, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { Check, Minus, Package, PackageSearch, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { Receipt } from '@/components/receipt/Receipt';
 import { SaleSyncPill } from '@/components/receipt/SaleDialog';
 import { Button } from '@/components/ui/Button';
@@ -23,7 +23,7 @@ import Link from 'next/link';
 import { buttonClasses } from '@/components/ui/Button';
 
 export default function Checkout() {
-  const { products, settings } = useStore();
+  const { products, settings, refreshProducts } = useStore();
   const cart = useCart();
   const f = useFormat();
   const [query, setQuery] = useState('');
@@ -33,6 +33,44 @@ export default function Checkout() {
   const [doneOpen, setDoneOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const { notify } = useToast();
+
+  // Background product refresh every 15s, paused when tab is hidden
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          void refreshProducts({ silent: true });
+        }
+      }, 15000);
+    };
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshProducts({ silent: true });
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    startPolling();
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshProducts]);
 
   // "/" jumps to search (like most POS / web apps).
   useEffect(() => {
@@ -131,7 +169,7 @@ export default function Checkout() {
                     )}
                   >
                     {inCart > 0 && <span className="absolute right-2.5 top-2.5 grid h-[22px] min-w-[22px] place-items-center rounded-full bg-brand px-1.5 text-[11px] font-extrabold text-white">{inCart}</span>}
-                    <div className="mb-3 grid h-[78px] place-items-center rounded-xl text-[32px]" style={{ background: p.tone }} aria-hidden>{p.imageUrl}</div>
+                    <ProductCardMedia url={p.imageUrl} name={p.name} tone={p.tone} />
                     <div className="line-clamp-2 min-h-[34px] text-xs font-bold leading-[1.4]">{p.name}</div>
                     <div className="mt-1.5 flex items-center justify-between gap-1">
                       <span className="tabular text-[13px] font-extrabold text-brand">{f.money(p.price)}</span>
@@ -375,5 +413,30 @@ function DoneDialog({ sale, open, onNew }: { sale: Sale | null; open: boolean; o
         </>
       )}
     </Dialog>
+  );
+}
+
+function ProductCardMedia({ url, name, tone }: { url?: string; name: string; tone?: string }) {
+  const [error, setError] = useState(false);
+  const showImg = Boolean(url && !error);
+
+  return (
+    <div
+      className="mb-3 relative flex h-[78px] w-full items-center justify-center overflow-hidden rounded-xl"
+      style={{ background: tone || '#f1f5f9' }}
+      aria-hidden
+    >
+      {showImg ? (
+        <img
+          src={url}
+          alt={name}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setError(true)}
+        />
+      ) : (
+        <Package size={30} className="text-[#8896ab]" />
+      )}
+    </div>
   );
 }

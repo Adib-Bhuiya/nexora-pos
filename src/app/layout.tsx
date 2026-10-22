@@ -9,10 +9,8 @@ const fullName = `${BRAND.name} ${BRAND.suffix}`;
 
 export const metadata: Metadata = {
   title: { default: `${fullName} — Retail Point of Sale`, template: `%s · ${fullName}` },
-  description: 'Offline-capable retail point of sale. All data stays in this browser.',
-  manifest: '/manifest.webmanifest',
+  description: 'Retail point of sale system with inventory, receipt printing, and sales records.',
   icons: { icon: '/favicon.svg', apple: '/icons/apple-touch-icon.png' },
-  appleWebApp: { capable: true, title: fullName, statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

@@ -2,25 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { LogOut, RefreshCw, Settings as SettingsIcon, Shield, TriangleAlert } from 'lucide-react';
+import { LogOut, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { BRAND } from '@/config/brand';
 import { ROLE_LABEL } from '@/config/permissions';
 import { cn } from '@/lib/cn';
 import { useStore } from '@/store/StoreProvider';
 import { useToast } from '@/components/ui/Toast';
 import { Avatar } from '@/components/ui/Bits';
-import { SyncCenter } from '@/components/sync/SyncCenter';
-import { OwnerLoginModal } from '@/components/auth/OwnerLoginModal';
-import { PinKeypadModal } from '@/components/auth/PinKeypadModal';
-import type { User } from '@/types';
 
 export function Topbar() {
-  const { online, deviceOnline, simulatedOffline, setSimulatedOffline, syncing, pendingCount, failedCount } = useStore();
-  const { notify } = useToast();
-  const [syncOpen, setSyncOpen] = useState(false);
-
-  const connectionLabel = online ? 'Online' : simulatedOffline && deviceOnline ? 'Offline · simulated' : 'Offline';
-  const syncLabel = syncing ? 'Syncing…' : failedCount ? `${failedCount} failed` : pendingCount ? `${pendingCount} pending` : 'Synced';
+  const { refreshingProducts, refreshProducts } = useStore();
 
   return (
     <header className="material sticky top-0 z-30 flex h-[62px] items-center justify-between border-b border-line px-3.5 md:h-[72px] md:px-[26px]">
@@ -32,52 +23,30 @@ export function Topbar() {
         </div>
       </Link>
 
-      <div className="flex items-center gap-1.5 md:gap-2.5">
+      <div className="flex items-center gap-2 md:gap-3">
+        {/* Instant Sync Button: immediately fetches latest products from server */}
         <button
           type="button"
-          onClick={() => {
-            if (!deviceOnline) notify('Your device is offline. Reconnect to go online.', { tone: 'warning' });
-            else {
-              setSimulatedOffline(!simulatedOffline);
-            }
-          }}
-          title={deviceOnline ? 'Click to simulate going offline / online' : 'Your device has no network connection'}
-          aria-label={`Connection: ${connectionLabel}. ${deviceOnline ? 'Activate to toggle simulated offline mode.' : ''}`}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-[transform,background-color] duration-100 active:scale-[.96]',
-            online ? 'bg-[#e7f7ef] text-ok' : 'bg-[#fff2dc] text-warn',
-          )}
+          onClick={() => void refreshProducts({ silent: false })}
+          disabled={refreshingProducts}
+          aria-label={refreshingProducts ? 'Refreshing products…' : 'Sync products with server'}
+          title="Fetch latest products from server"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-[9px] border border-line bg-white px-3 text-xs font-bold max-[420px]:px-2.5 transition-[transform,background-color] duration-100 hover:bg-[#f8faff] active:scale-[.97] disabled:opacity-60 cursor-pointer"
         >
-          <span aria-hidden>●</span>
-          <span className="max-[400px]:hidden">{connectionLabel}</span>
-          <span className="min-[401px]:hidden">{online ? 'Online' : 'Offline'}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSyncOpen(true)}
-          aria-label={`Sync status: ${syncLabel}. Open details.`}
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-[9px] border border-line bg-white px-3 text-xs font-bold max-[420px]:px-2.5 transition-[transform,background-color] duration-100 hover:bg-[#f8faff] active:scale-[.97]"
-        >
-          {failedCount ? <TriangleAlert size={14} className="text-danger" /> : <RefreshCw size={14} className={cn(syncing && 'animate-spin', !syncing && !pendingCount && 'text-ok')} />}
-          {/* Narrow phones: icon + count only (the full state is in the aria-label). */}
-          <span className="max-[420px]:hidden">{syncLabel}</span>
-          <span className="tabular min-[421px]:hidden">{failedCount || pendingCount || ''}</span>
+          <RefreshCw size={14} className={cn(refreshingProducts && 'animate-spin', !refreshingProducts && 'text-brand')} />
+          <span className="max-[420px]:hidden">{refreshingProducts ? 'Syncing…' : 'Sync'}</span>
         </button>
 
         <UserMenu />
       </div>
-      <SyncCenter open={syncOpen} onClose={() => setSyncOpen(false)} />
     </header>
   );
 }
 
 function UserMenu() {
-  const { user, users, actions } = useStore();
+  const { user, actions } = useStore();
   const { notify } = useToast();
   const [open, setOpen] = useState(false);
-  const [pinTargetCashier, setPinTargetCashier] = useState<User | null>(null);
-  const [ownerLoginOpen, setOwnerLoginOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -94,9 +63,6 @@ function UserMenu() {
       document.removeEventListener('keydown', key);
     };
   }, [open]);
-
-  // Cashiers created by owner
-  const realCashiers = users.filter((u) => u.id !== user.id && u.role === 'cashier');
 
   return (
     <div ref={ref} className="relative">
@@ -116,59 +82,16 @@ function UserMenu() {
           {user.role === 'owner' ? 'Owner' : 'Cashier'}
         </span>
       </button>
+
       {open && (
-        <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[280px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
+        <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[240px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
           <div className="px-2.5 pb-2 pt-1.5">
             <div className="text-[13px] font-extrabold truncate">{user.name}</div>
             <div className="text-[11px] text-muted flex items-center justify-between">
               <span>{ROLE_LABEL[user.role]}</span>
-              {user.email && <span className="truncate max-w-[150px]">{user.email}</span>}
+              {user.email && <span className="truncate max-w-[130px]">{user.email}</span>}
             </div>
           </div>
-
-          {user.role === 'owner' && realCashiers.length > 0 && (
-            <>
-              <div className="my-1 border-t border-line" />
-              <div className="px-2.5 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[1.2px] text-[#8993a4]">
-                Switch to Cashier PIN
-              </div>
-              {realCashiers.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setOpen(false);
-                    setPinTargetCashier(c);
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors duration-100 hover:bg-[#eef1f6] active:bg-[#e4e9f2]"
-                >
-                  <Avatar initials={c.initials} size={28} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-bold truncate">{c.name}</span>
-                    <span className="block text-[10px] text-muted">PIN required</span>
-                  </span>
-                </button>
-              ))}
-            </>
-          )}
-
-          {user.role === 'cashier' && (
-            <>
-              <div className="my-1 border-t border-line" />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  setOwnerLoginOpen(true);
-                }}
-                className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-xs font-bold text-brand hover:bg-brand-soft"
-              >
-                <Shield size={14} /> Switch to Owner
-              </button>
-            </>
-          )}
 
           <div className="my-1 border-t border-line" />
           <Link
@@ -190,7 +113,7 @@ function UserMenu() {
                 setOpen(false);
                 notify('Signed out successfully.', { tone: 'info' });
               } catch {
-                // actions.logout already dispatched the error toast
+                // actions.logout already handles user feedback
               } finally {
                 setLoggingOut(false);
               }
@@ -202,27 +125,6 @@ function UserMenu() {
           </button>
         </div>
       )}
-
-      {/* Cashier PIN Switch Modal */}
-      <PinKeypadModal
-        open={Boolean(pinTargetCashier)}
-        cashier={pinTargetCashier}
-        onClose={() => setPinTargetCashier(null)}
-        onSuccess={(authenticatedCashier) => {
-          setPinTargetCashier(null);
-          notify(`Switched to cashier: ${authenticatedCashier.name}`);
-        }}
-      />
-
-      {/* Owner Login Switch Modal */}
-      <OwnerLoginModal
-        open={ownerLoginOpen}
-        onClose={() => setOwnerLoginOpen(false)}
-        onSuccess={(authenticatedOwner) => {
-          setOwnerLoginOpen(false);
-          notify(`Signed in as owner: ${authenticatedOwner.name}`);
-        }}
-      />
     </div>
   );
 }

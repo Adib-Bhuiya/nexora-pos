@@ -1,6 +1,6 @@
 'use client';
 import { Package } from 'lucide-react';
-import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from 'react';
+import { useState, type ReactNode, type TdHTMLAttributes, type ThHTMLAttributes } from 'react';
 import type { StockStatus } from '@/types';
 import { cn } from '@/lib/cn';
 
@@ -30,6 +30,10 @@ export function ProductThumb({
   tone: string;
   size?: number;
 }) {
+  const [loadError, setLoadError] = useState(false);
+  const trimmedUrl = imageUrl?.trim();
+  const showImage = Boolean(trimmedUrl && !loadError);
+
   return (
     <div
       className="grid shrink-0 place-items-center overflow-hidden rounded-[10px]"
@@ -39,10 +43,11 @@ export function ProductThumb({
         background: tone || '#f3f4f6',
       }}
     >
-      {imageUrl?.trim() ? (
+      {showImage ? (
         <img
-          src={imageUrl.trim()}
+          src={trimmedUrl}
           alt="Product"
+          onError={() => setLoadError(true)}
           className="h-full w-full object-cover"
         />
       ) : (

@@ -52,7 +52,6 @@ interface StoreActions {
   recordSale(input: commands.SaleInput): Promise<Sale>;
   refundSale(saleId: string, reason: string, items?: { productId: string; qty: number }[]): Promise<Sale>;
   saveSettings(settings: Settings): Promise<void>;
-  switchUser(id: string): Promise<void>;
   loginOwner(email: string, password: string): Promise<User>;
   loginPin(userId: string, pin: string): Promise<User>;
   logout(): Promise<void>;
@@ -93,6 +92,9 @@ interface StoreValue {
   transportName: string;
   syncNow(): Promise<SyncSummary | null>;
   clearSyncedHistory(): Promise<void>;
+
+  refreshingProducts: boolean;
+  refreshProducts(options?: { silent?: boolean }): Promise<void>;
 
   actions: StoreActions;
 }
@@ -297,25 +299,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [transport, changed, notify],
   );
 
-  const ready = snap !== null;
-  const autoSync = snap?.settings.autoSync ?? false;
+  const [refreshingProducts, setRefreshingProducts] = useState(false);
+  const isRefreshingProductsRef = useRef(false);
 
-  // Simulated auto-sync: when online, drain "pending" shortly after changes.
-  useEffect(() => {
-    if (!ready || !online || !autoSync || pendingCount === 0 || syncing) return;
-    const t = setTimeout(() => void doSync(['pending'], true), 1200);
-    return () => clearTimeout(t);
-  }, [ready, online, autoSync, pendingCount, syncing, doSync]);
+  const refreshProducts = useCallback(
+    async (options?: { silent?: boolean }): Promise<void> => {
+      if (isRefreshingProductsRef.current) return;
+      isRefreshingProductsRef.current = true;
+      if (!options?.silent) setRefreshingProducts(true);
 
-  // Tell the user when connectivity changes.
-  const prevOnline = useRef(online);
-  useEffect(() => {
-    if (prevOnline.current === online) return;
-    prevOnline.current = online;
-    if (!ready) return;
-    if (online) notify(pendingCount ? `Back online. ${pendingCount} queued change${pendingCount === 1 ? '' : 's'} will sync.` : 'Back online.', { tone: 'success' });
-    else notify('You’re offline. Sales and stock changes are saved on this device and queued for sync.', { tone: 'warning' });
-  }, [online, ready, pendingCount, notify]);
+      try {
+        const prods = await fetchProducts();
+        await cacheMongoProducts(prods);
+        const updatedSnap = await loadSnapshot();
+        setSnap(updatedSnap);
+        if (!options?.silent) {
+          notify('Products refreshed successfully.', { tone: 'success' });
+        }
+      } catch (err: any) {
+        console.error('Failed to refresh products:', err);
+        if (!options?.silent) {
+          notify('Could not refresh products from server. Please check your connection.', { tone: 'error' });
+        }
+        throw err;
+      } finally {
+        isRefreshingProductsRef.current = false;
+        if (!options?.silent) setRefreshingProducts(false);
+      }
+    },
+    [notify]
+  );
 
   const user = liveUser;
   const users = useMemo(() => {
@@ -427,9 +440,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveSettings: async (settings) => {
         const saved = await saveSettingsApi(settings);
         return run(() => commands.saveSettings(saved));
-      },
-      switchUser: async () => {
-        throw new Error('Role switching requires credential verification. Please sign in with account credentials.');
       },
       loginOwner: async (email, password) => {
         const u = await loginOwnerApi({ email, password });
@@ -551,9 +561,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await clearSyncHistory();
         await changed();
       },
+      refreshingProducts,
+      refreshProducts,
       actions,
     };
-  }, [snap, user, users, initialized, authenticated, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions]);
+  }, [snap, user, users, initialized, authenticated, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions, refreshingProducts, refreshProducts]);
 
   const pathname = usePathname();
   if (pathname?.startsWith('/reset-password')) return <>{children}</>;

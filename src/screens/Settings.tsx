@@ -1,19 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, CircleX, Download, KeyRound, Plus, Receipt as ReceiptIcon, RefreshCw, ShieldAlert, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Download, KeyRound, Plus, Receipt as ReceiptIcon, ShieldAlert, X } from 'lucide-react';
 import { Receipt } from '@/components/receipt/Receipt';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHead, EmptyState, Notice, PageHeader } from '@/components/ui/Card';
 import { ConfirmDialog, Dialog } from '@/components/ui/Dialog';
 import { Input, Segmented, SelectField, SwitchRow, TextAreaField, TextField } from '@/components/ui/Fields';
-import { Avatar, StatusPill, TableWrap, Td, Th } from '@/components/ui/Bits';
+import { Avatar, TableWrap, Td, Th } from '@/components/ui/Bits';
 import { useToast } from '@/components/ui/Toast';
 import { CURRENCIES } from '@/config/constants';
 import { CAPABILITIES, ROLE_LABEL } from '@/config/permissions';
 import { exportAll } from '@/db/snapshot';
-import { applyUpdate, useServiceWorker } from '@/hooks/useServiceWorker';
-import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { downloadFile } from '@/lib/csv';
 import { validateSettingsDraft, type Errors, type SettingsDraft } from '@/lib/validation';
 import { useStore, userMessage } from '@/store/StoreProvider';
@@ -22,7 +20,7 @@ import type { Sale, Settings as SettingsType, User } from '@/types';
 const toDraft = (s: SettingsType): SettingsDraft => ({ ...s, taxRate: String(s.taxRate), lowStockThreshold: String(s.lowStockThreshold) });
 
 export default function SettingsPage() {
-  const { settings, user, users, can, actions, products, pendingCount } = useStore();
+  const { settings, user, users, can, actions, products } = useStore();
   const { notify } = useToast();
   const canWrite = can('settings:write');
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(settings));
@@ -408,12 +406,6 @@ export default function SettingsPage() {
               </div>
             </div>
           </Card>
-
-          <Card className="p-[19px] max-md:p-3.5">
-            <CardHead title="Sync" sub="Simulated. No server is connected." />
-            <SwitchRow label="Auto-sync when online" description="Marks queued changes as synced shortly after they’re made." checked={draft.autoSync} onChange={(v) => set('autoSync', v)} />
-            <p className="mt-1 text-[11px] text-muted">{pendingCount} change{pendingCount === 1 ? '' : 's'} waiting. Open <b>Sync status</b> in the top bar to inspect them.</p>
-          </Card>
         </fieldset>
 
         {canWrite && (
@@ -426,7 +418,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <AppCard />
         <DataCard canWrite={canWrite} onClear={() => setConfirm('clear')} />
       </div>
 
@@ -584,44 +575,7 @@ export default function SettingsPage() {
 }
 
 const Mark = ({ ok }: { ok: boolean }) =>
-  ok ? <Check size={16} className="inline text-ok" aria-label="Yes" /> : <CircleX size={16} className="inline text-[#c3cad6]" aria-label="No" />;
-
-function AppCard() {
-  const sw = useServiceWorker();
-  const { online, deviceOnline } = useStore();
-  const install = useInstallPrompt();
-  const [storage, setStorage] = useState<{ used: number; persisted: boolean | null } | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [est, persisted] = await Promise.all([navigator.storage?.estimate?.(), navigator.storage?.persisted?.()]);
-        setStorage({ used: est?.usage ?? 0, persisted: persisted ?? null });
-      } catch {
-        setStorage(null);
-      }
-    })();
-  }, []);
-
-  const Row = ({ l, children }: { l: string; children: ReactNode }) => (
-    <div className="flex items-center justify-between gap-3 border-b border-[#edf0f4] py-3 text-xs last:border-0"><span className="text-muted">{l}</span><span className="text-right font-semibold">{children}</span></div>
-  );
-
-  return (
-    <Card className="p-[19px] max-md:p-3.5">
-      <CardHead title="App & offline" sub="Progressive Web App status." />
-      <Row l="Connection"><StatusPill tone={online ? 'good' : 'low'}>{online ? 'Online' : deviceOnline ? 'Offline (simulated)' : 'Offline'}</StatusPill></Row>
-      <Row l="Offline app shell">
-        {sw.offlineReady ? <StatusPill tone="good">Cached · works offline</StatusPill> : <StatusPill tone="neutral">{process.env.NODE_ENV !== 'production' ? 'Not in dev mode' : 'Not cached yet'}</StatusPill>}
-      </Row>
-      <Row l="Local storage">{storage ? `${(storage.used / 1024).toFixed(0)} KB · ${storage.persisted ? 'persistent' : 'best-effort'}` : 'IndexedDB'}</Row>
-      <Row l="Install">
-        {install.isInstalled ? 'Installed' : install.canInstall ? <Button size="sm" variant="primary" onClick={() => void install.install()}><Download size={13} aria-hidden /> Install app</Button> : <span className="font-normal text-muted">Use your browser’s “Install” / “Add to Home Screen”</span>}
-      </Row>
-      {sw.needRefresh && <div className="mt-3"><Button variant="primary" onClick={() => void applyUpdate()}><RefreshCw size={14} aria-hidden /> Update to the new version</Button></div>}
-    </Card>
-  );
-}
+  ok ? <Check size={16} className="inline text-ok" aria-label="Yes" /> : <X size={16} className="inline text-[#c3cad6]" aria-label="No" />;
 
 function DataCard({ canWrite, onClear }: { canWrite: boolean; onClear: () => void }) {
   const { notify } = useToast();

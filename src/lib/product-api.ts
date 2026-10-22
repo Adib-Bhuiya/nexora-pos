@@ -126,3 +126,29 @@ export async function updateStockApi(
 
   return data.products ?? [];
 }
+
+export async function uploadProductImageApi(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'X-Requested-With': 'NexoraPOS',
+    },
+    body: formData,
+  });
+
+  const data = (await response.json()) as {
+    success?: boolean;
+    url?: string;
+    message?: string;
+  };
+
+  if (!response.ok || data.success === false || !data.url) {
+    throw new Error(data.message || 'Failed to upload product image.');
+  }
+
+  return data.url;
+}

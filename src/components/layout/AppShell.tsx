@@ -2,28 +2,15 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { applyUpdate, useServiceWorker } from '@/hooks/useServiceWorker';
-import { useToast } from '@/components/ui/Toast';
 import { MobileNav, Sidebar } from './Nav';
 import { Topbar } from './Topbar';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const sw = useServiceWorker();
-  const { notify } = useToast();
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [pathname]);
-
-  useEffect(() => {
-    if (sw.needRefresh)
-      notify('A new version is ready.', { tone: 'info', duration: 15000, action: { label: 'Reload', onClick: () => void applyUpdate() } });
-  }, [sw.needRefresh, notify]);
-
-  useEffect(() => {
-    if (sw.offlineReady) notify('Ready to work offline.', { tone: 'success' });
-  }, [sw.offlineReady, notify]);
 
   if (pathname?.startsWith('/reset-password')) {
     return (
