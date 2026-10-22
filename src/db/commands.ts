@@ -179,8 +179,8 @@ export async function deleteProduct(id: string): Promise<void> {
     if (!current) return;
     await s.products.delete(id);
     const device = await getDeviceId(s);
-    // Past sales and movements keep their own snapshot of the product name.
-    await enqueue(s, [makeOp(device, 'product', 'delete', id, `Delete product ${current.name}`, { id })]);
+    const ops = [makeOp(device, 'product', 'delete', id, `Delete product ${current.name}`, { id })];
+    await enqueue(s, ops);
   });
 }
 

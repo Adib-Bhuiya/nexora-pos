@@ -24,7 +24,7 @@ const StockMovementSchema = new Schema(
     type: {
       type: String,
       required: true,
-      enum: ['initial', 'sale', 'restock', 'adjustment'],
+      enum: ['initial', 'sale', 'restock', 'adjustment', 'removal'],
     },
     change: {
       type: Number,

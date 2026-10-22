@@ -18,8 +18,20 @@ import type { MovementType, Product, StockStatus } from '@/types';
 
 type Tab = 'levels' | 'history';
 const PAGE = 50;
-const TYPE_LABEL: Record<MovementType, string> = { initial: 'Opening', sale: 'Sale', restock: 'Restock', adjustment: 'Adjustment' };
-const TYPE_TONE = { initial: 'neutral', sale: 'info', restock: 'good', adjustment: 'low' } as const;
+const TYPE_LABEL: Record<MovementType, string> = {
+  initial: 'Opening',
+  sale: 'Sale',
+  restock: 'Restock',
+  adjustment: 'Adjustment',
+  removal: 'Product removed',
+};
+const TYPE_TONE = {
+  initial: 'neutral',
+  sale: 'info',
+  restock: 'good',
+  adjustment: 'low',
+  removal: 'out',
+} as const;
 
 export default function Inventory() {
   const { products, movements, settings, can } = useStore();
@@ -33,12 +45,28 @@ export default function Inventory() {
   const [mvProduct, setMvProduct] = useState('all');
   const [shown, setShown] = useState(PAGE);
 
+  const productFilterOptions = useMemo(() => {
+    const list: { id: string; name: string }[] = products.map((p) => ({ id: p.id, name: p.name }));
+    const existingIds = new Set(products.map((p) => p.id));
+    for (const m of movements) {
+      if (m.productId && !existingIds.has(m.productId)) {
+        existingIds.add(m.productId);
+        list.push({ id: m.productId, name: `${m.productName} (removed)` });
+      }
+    }
+    return list;
+  }, [products, movements]);
+
   const report = useMemo(() => inventoryReport(products, settings.lowStockThreshold), [products, settings.lowStockThreshold]);
   const q = query.trim().toLowerCase();
   const rows = products
     .filter((p) => (status === 'all' || stockStatus(p.stock, settings.lowStockThreshold) === status) && (!q || [p.name, p.sku].some((v) => v.toLowerCase().includes(q))))
     .sort((a, b) => a.stock - b.stock);
-  const mv = movements.filter((m) => (mvType === 'all' || m.type === mvType) && (mvProduct === 'all' || m.productId === mvProduct));
+  const mv = movements.filter((m) => {
+    const typeMatches = mvType === 'all' || m.type === mvType;
+    const prodMatches = mvProduct === 'all' || m.productId === mvProduct;
+    return typeMatches && prodMatches;
+  });
 
   return (
     <>
@@ -109,7 +137,7 @@ export default function Inventory() {
           <div className="flex gap-2.5 p-3.5 max-md:flex-col md:p-[19px]">
             <Select value={mvProduct} onChange={(e) => { setMvProduct(e.target.value); setShown(PAGE); }} aria-label="Filter by product" className="md:max-w-[260px]">
               <option value="all">All products</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {productFilterOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </Select>
             <Select value={mvType} onChange={(e) => { setMvType(e.target.value as 'all' | MovementType); setShown(PAGE); }} aria-label="Filter by type" className="md:max-w-[190px]">
               <option value="all">All movement types</option>
@@ -125,19 +153,30 @@ export default function Inventory() {
                   <tr><Th>Time</Th><Th>Product</Th><Th>Type</Th><Th align="right">Change</Th><Th align="right">Balance</Th><Th>Note</Th><Th>By</Th></tr>
                 </thead>
                 <tbody>
-                  {mv.slice(0, shown).map((m) => (
-                    <tr key={m.id}>
-                      <Td>{f.dateTime(m.time)}</Td>
-                      <Td className="font-bold text-ink">{m.productName}</Td>
-                      <Td><StatusPill tone={TYPE_TONE[m.type]}>{TYPE_LABEL[m.type]}</StatusPill></Td>
-                      <Td align="right" className={cn('font-extrabold', m.change > 0 ? 'text-ok' : 'text-danger')}>
-                        <span className="inline-flex items-center gap-0.5">{m.change > 0 ? <ArrowUp size={12} aria-hidden /> : <ArrowDown size={12} aria-hidden />}{Math.abs(m.change)}<span className="sr-only">{m.change > 0 ? ' added' : ' removed'}</span></span>
-                      </Td>
-                      <Td align="right">{m.balanceAfter}</Td>
-                      <Td>{m.note}</Td>
-                      <Td>{m.actorName}</Td>
-                    </tr>
-                  ))}
+                  {mv.slice(0, shown).map((m) => {
+                    const isRemoval = m.type === 'removal';
+                    return (
+                      <tr key={m.id}>
+                        <Td>{f.dateTime(m.time)}</Td>
+                        <Td className="font-bold text-ink">{m.productName}</Td>
+                        <Td><StatusPill tone={TYPE_TONE[m.type] || 'out'}>{TYPE_LABEL[m.type] || 'Product removed'}</StatusPill></Td>
+                        <Td align="right" className={cn('font-extrabold', isRemoval ? 'text-muted font-normal' : m.change > 0 ? 'text-ok' : 'text-danger')}>
+                          {isRemoval ? (
+                            '—'
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5">
+                              {m.change > 0 ? <ArrowUp size={12} aria-hidden /> : <ArrowDown size={12} aria-hidden />}
+                              {Math.abs(m.change)}
+                              <span className="sr-only">{m.change > 0 ? ' added' : ' removed'}</span>
+                            </span>
+                          )}
+                        </Td>
+                        <Td align="right">{isRemoval ? <span className="text-muted font-normal">—</span> : m.balanceAfter}</Td>
+                        <Td>{m.note}</Td>
+                        <Td>{m.actorName}</Td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </TableWrap>
               <div className="flex items-center justify-between border-t border-[#edf0f4] px-4 py-3 text-xs text-muted">

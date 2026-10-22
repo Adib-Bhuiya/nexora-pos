@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/mongodb";
+import { connectDB, withTransactionIfSupported } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import StockMovement from "@/models/StockMovement";
 import mongoose from "mongoose";
 import { getSessionUser, verifyCsrfAndOrigin } from "@/lib/auth-server";
 
@@ -237,9 +238,65 @@ export async function DELETE(
 
     await connectDB();
 
-    const product = await Product.findByIdAndDelete(id);
+    let movementDoc: any;
 
-    if (!product) {
+    const deletedProduct = await withTransactionIfSupported(async (session) => {
+      const sessionOpt = session ? { session } : {};
+      const existingProduct = await Product.findById(id, null, sessionOpt);
+      if (!existingProduct) {
+        return null;
+      }
+
+      await Product.findByIdAndDelete(id, sessionOpt);
+
+      try {
+        const count = await StockMovement.countDocuments({}, sessionOpt);
+
+        const [createdMovement] = await StockMovement.create(
+          [
+            {
+              seq: count + 1,
+              productId: existingProduct._id.toString(),
+              productName: existingProduct.name,
+              sku: existingProduct.sku,
+              type: "removal",
+              change: 0,
+              balanceAfter: 0,
+              note: "Product removed from catalog",
+              reference: auth.user.id,
+              actorName:
+                typeof auth.user.name === "string" && auth.user.name.trim()
+                  ? auth.user.name.trim()
+                  : "Administrator",
+              time: new Date().toISOString(),
+            },
+          ],
+          sessionOpt
+        );
+
+        movementDoc = createdMovement;
+      } catch (movementError) {
+        if (!session) {
+          try {
+            const rawProduct =
+              typeof existingProduct.toObject === "function"
+                ? existingProduct.toObject()
+                : existingProduct;
+            await Product.create(rawProduct);
+          } catch (restoreError) {
+            console.error(
+              "Failed to rollback product deletion in non-transactional fallback:",
+              restoreError
+            );
+          }
+        }
+        throw movementError;
+      }
+
+      return existingProduct;
+    });
+
+    if (!deletedProduct) {
       return NextResponse.json(
         { success: false, message: "Product not found." },
         { status: 404 }
@@ -249,6 +306,13 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       message: "Product deleted successfully.",
+      movement: movementDoc
+        ? {
+            ...movementDoc.toObject(),
+            id: movementDoc._id.toString(),
+            _id: movementDoc._id.toString(),
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("Failed to delete product:", error);

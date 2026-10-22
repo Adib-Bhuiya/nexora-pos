@@ -35,7 +35,7 @@ export type ProductInput = Pick<
   'name' | 'sku' | 'barcode' | 'category' | 'price' | 'cost' | 'stock' | 'imageUrl' | 'tone'
 >;
 
-export type MovementType = 'initial' | 'sale' | 'restock' | 'adjustment';
+export type MovementType = 'initial' | 'sale' | 'restock' | 'adjustment' | 'removal';
 
 export interface StockMovement {
   id: string;

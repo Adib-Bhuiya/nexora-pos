@@ -1,4 +1,6 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import mongoose from 'mongoose';
+import * as mongodb from '@/lib/mongodb';
 import Product from '@/models/Product';
 import Sale from '@/models/Sale';
 import StockMovement from '@/models/StockMovement';
@@ -147,6 +149,32 @@ describe('Mongoose Models Schema Validation', () => {
     });
     await expect(valid.validate()).resolves.toBeUndefined();
 
+    const validRemoval = new StockMovement({
+      productId: '60d5ecb8b5c9c61234567890',
+      productName: 'Rice 5kg',
+      sku: 'RC-5',
+      type: 'removal',
+      change: 0,
+      balanceAfter: 0,
+      note: 'Product removed from catalog',
+      actorName: 'Adib',
+      time: new Date().toISOString(),
+    });
+    await expect(validRemoval.validate()).resolves.toBeUndefined();
+
+    const invalidProductRemoved = new StockMovement({
+      productId: '60d5ecb8b5c9c61234567890',
+      productName: 'Rice 5kg',
+      sku: 'RC-5',
+      type: 'PRODUCT_REMOVED' as any,
+      change: 0,
+      balanceAfter: 0,
+      note: 'Product removed from catalog',
+      actorName: 'Adib',
+      time: new Date().toISOString(),
+    });
+    await expect(invalidProductRemoved.validate()).rejects.toThrow();
+
     const invalidType = new StockMovement({
       productId: '60d5ecb8b5c9c61234567890',
       productName: 'Rice 5kg',
@@ -255,6 +283,230 @@ describe('API Route Validation & Bad Request Handling', () => {
       { params: Promise.resolve({ id: 'not-an-id' }) }
     );
     expect(res.status).toBe(400);
+  });
+
+  it('DELETE /api/products/[id] requires authentication and owner role', async () => {
+    const validId = '60d5ecb8b5c9c61234567890';
+    // Unauthenticated request
+    const resUnauth = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-requested-with': 'NexoraPOS',
+          origin: 'http://localhost:3000',
+        },
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+    expect(resUnauth.status).toBe(401);
+
+    // Cashier request
+    const resCashier = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+          'x-test-role': 'cashier',
+        },
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+    expect(resCashier.status).toBe(403);
+  });
+
+  it('DELETE /api/products/[id] validates CSRF headers', async () => {
+    const validId = '60d5ecb8b5c9c61234567890';
+    const res = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          // missing x-requested-with header
+        },
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('DELETE /api/products/[id] returns 404 and creates no movement when product not found', async () => {
+    const validId = '60d5ecb8b5c9c61234567890';
+    const connectDbSpy = vi.spyOn(mongodb, 'connectDB').mockResolvedValue(mongoose as any);
+    const txSpy = vi.spyOn(mongodb, 'withTransactionIfSupported').mockImplementation(async (fn: any) => fn(undefined));
+    const findByIdSpy = vi.spyOn(Product, 'findById').mockResolvedValue(null as any);
+    const createMovementSpy = vi.spyOn(StockMovement, 'create');
+
+    const res = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+
+    expect(res.status).toBe(404);
+    expect(createMovementSpy).not.toHaveBeenCalled();
+
+    connectDbSpy.mockRestore();
+    txSpy.mockRestore();
+    findByIdSpy.mockRestore();
+    createMovementSpy.mockRestore();
+  });
+
+  it('DELETE /api/products/[id] deletes product and records removal StockMovement', async () => {
+    const validId = '60d5ecb8b5c9c61234567890';
+    const mockProduct = {
+      _id: new mongoose.Types.ObjectId(validId),
+      name: 'Organic Rice 5kg',
+      sku: 'RIC-5KG',
+      stock: 15,
+    };
+
+    const connectDbSpy = vi.spyOn(mongodb, 'connectDB').mockResolvedValue(mongoose as any);
+    const txSpy = vi.spyOn(mongodb, 'withTransactionIfSupported').mockImplementation(async (fn: any) => fn(undefined));
+    const findByIdSpy = vi.spyOn(Product, 'findById').mockResolvedValue(mockProduct as any);
+    const findByIdAndDeleteSpy = vi.spyOn(Product, 'findByIdAndDelete').mockResolvedValue(mockProduct as any);
+    const countDocsSpy = vi.spyOn(StockMovement, 'countDocuments').mockResolvedValue(10 as any);
+
+    let createdMovements: any[] = [];
+    const createMovementSpy = vi.spyOn(StockMovement, 'create').mockImplementation(async (docs: any) => {
+      createdMovements = Array.isArray(docs) ? docs : [docs];
+      return createdMovements.map((doc, idx) => ({
+        ...doc,
+        _id: new mongoose.Types.ObjectId(`60d5ecb8b5c9c6123456789${idx}`),
+        toObject: () => doc,
+      })) as any;
+    });
+
+    const res = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(validId, expect.anything());
+    expect(createMovementSpy).toHaveBeenCalled();
+    expect(createdMovements).toHaveLength(1);
+
+    const movement = createdMovements[0];
+    expect(movement.productId).toBe(validId);
+    expect(movement.productName).toBe('Organic Rice 5kg');
+    expect(movement.sku).toBe('RIC-5KG');
+    expect(movement.type).toBe('removal');
+    expect(movement.change).toBe(0);
+    expect(movement.balanceAfter).toBe(0);
+    expect(movement.note).toBe('Product removed from catalog');
+    expect(movement.actorName).toBe('Test User');
+    expect(movement.reference).toBe('60d5ecb8b5c9c61234567890');
+    expect(typeof movement.time).toBe('string');
+
+    connectDbSpy.mockRestore();
+    txSpy.mockRestore();
+    findByIdSpy.mockRestore();
+    findByIdAndDeleteSpy.mockRestore();
+    countDocsSpy.mockRestore();
+    createMovementSpy.mockRestore();
+  });
+
+  it('DELETE /api/products/[id] restores deleted product if StockMovement.create fails during non-transactional fallback', async () => {
+    const validId = '60d5ecb8b5c9c61234567890';
+    const mockProduct = {
+      _id: new mongoose.Types.ObjectId(validId),
+      name: 'Organic Rice 5kg',
+      sku: 'RIC-5KG',
+      stock: 15,
+      toObject: () => ({
+        _id: new mongoose.Types.ObjectId(validId),
+        name: 'Organic Rice 5kg',
+        sku: 'RIC-5KG',
+        stock: 15,
+      }),
+    };
+
+    const connectDbSpy = vi.spyOn(mongodb, 'connectDB').mockResolvedValue(mongoose as any);
+    const txSpy = vi.spyOn(mongodb, 'withTransactionIfSupported').mockImplementation(async (fn: any) => fn(undefined));
+    const findByIdSpy = vi.spyOn(Product, 'findById').mockResolvedValue(mockProduct as any);
+    const findByIdAndDeleteSpy = vi.spyOn(Product, 'findByIdAndDelete').mockResolvedValue(mockProduct as any);
+    const countDocsSpy = vi.spyOn(StockMovement, 'countDocuments').mockResolvedValue(10 as any);
+    const createMovementSpy = vi.spyOn(StockMovement, 'create').mockRejectedValue(new Error('Audit log creation error'));
+    const createProductSpy = vi.spyOn(Product, 'create').mockResolvedValue(mockProduct as any);
+
+    const res = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+
+    expect(res.status).toBe(500);
+    expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(validId, {});
+    expect(createMovementSpy).toHaveBeenCalled();
+    // Verifies the deleted product is restored to prevent silent un-audited permanent deletion
+    expect(createProductSpy).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Organic Rice 5kg',
+      sku: 'RIC-5KG',
+    }));
+
+    connectDbSpy.mockRestore();
+    txSpy.mockRestore();
+    findByIdSpy.mockRestore();
+    findByIdAndDeleteSpy.mockRestore();
+    countDocsSpy.mockRestore();
+    createMovementSpy.mockRestore();
+    createProductSpy.mockRestore();
+  });
+
+  it('DELETE /api/products/[id] skips manual restore when running within an active transaction session', async () => {
+    const validId = '60d5ecb8b5c9c61234567890';
+    const mockProduct = {
+      _id: new mongoose.Types.ObjectId(validId),
+      name: 'Organic Rice 5kg',
+      sku: 'RIC-5KG',
+      stock: 15,
+      toObject: () => ({
+        _id: new mongoose.Types.ObjectId(validId),
+        name: 'Organic Rice 5kg',
+        sku: 'RIC-5KG',
+        stock: 15,
+      }),
+    };
+
+    const mockSession = { id: 'mock-session-123' } as any;
+    const connectDbSpy = vi.spyOn(mongodb, 'connectDB').mockResolvedValue(mongoose as any);
+    const txSpy = vi.spyOn(mongodb, 'withTransactionIfSupported').mockImplementation(async (fn: any) => fn(mockSession));
+    const findByIdSpy = vi.spyOn(Product, 'findById').mockResolvedValue(mockProduct as any);
+    const findByIdAndDeleteSpy = vi.spyOn(Product, 'findByIdAndDelete').mockResolvedValue(mockProduct as any);
+    const countDocsSpy = vi.spyOn(StockMovement, 'countDocuments').mockResolvedValue(10 as any);
+    const createMovementSpy = vi.spyOn(StockMovement, 'create').mockRejectedValue(new Error('Tx audit log error'));
+    const createProductSpy = vi.spyOn(Product, 'create');
+
+    const res = await deleteProductHandler(
+      new Request(`http://localhost:3000/api/products/${validId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      }),
+      { params: Promise.resolve({ id: validId }) }
+    );
+
+    expect(res.status).toBe(500);
+    expect(findByIdAndDeleteSpy).toHaveBeenCalledWith(validId, { session: mockSession });
+    // In transaction mode, manual compensation is not needed because transaction abort rolls back changes
+    expect(createProductSpy).not.toHaveBeenCalled();
+
+    connectDbSpy.mockRestore();
+    txSpy.mockRestore();
+    findByIdSpy.mockRestore();
+    findByIdAndDeleteSpy.mockRestore();
+    countDocsSpy.mockRestore();
+    createMovementSpy.mockRestore();
+    createProductSpy.mockRestore();
   });
 
   it('PATCH /api/products/stock validates stock changes format', async () => {

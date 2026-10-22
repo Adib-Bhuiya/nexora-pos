@@ -1,5 +1,5 @@
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '@/config/constants';
 import { ValidationError } from '@/lib/validation';
 import { createSimulatedTransport, runSync, clearSyncHistory } from '@/services/sync';
@@ -148,6 +148,44 @@ describe('products', () => {
     const seqs = s.queue.map((o) => o.seq);
     expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
     expect(new Set(seqs).size).toBe(seqs.length);
+  });
+
+  it('deleting product does not add stock_movement:create to sync queue or record local removal movement', async () => {
+    await clearAllData();
+    const p = await createProduct(input({ stock: 10 }), actor);
+    await deleteProduct(p.id);
+    const s = await loadSnapshot();
+    expect(s.products).toHaveLength(0);
+    // Only the initial movement from createProduct exists locally; no local removal movement
+    expect(s.movements).toHaveLength(1);
+    expect(s.movements[0].type).toBe('initial');
+    // Queue contains product:create, stock_movement:create (for initial), and product:delete; NO stock_movement:create for deletion
+    expect(s.queue.map((o) => `${o.entity}:${o.action}`)).toEqual([
+      'product:create',
+      'stock_movement:create',
+      'product:delete',
+    ]);
+  });
+
+  it('when server deletion fails, local product is preserved and no removal movement is created', async () => {
+    await clearAllData();
+    const p = await createProduct(input({ stock: 5 }), actor);
+
+    const mockFailingApi = vi.fn().mockRejectedValue(new Error('Server deletion failed'));
+
+    let errorThrown = false;
+    try {
+      await mockFailingApi();
+      await deleteProduct(p.id);
+    } catch {
+      errorThrown = true;
+    }
+
+    expect(errorThrown).toBe(true);
+    const s = await loadSnapshot();
+    expect(s.products).toHaveLength(1);
+    expect(s.products[0].id).toBe(p.id);
+    expect(s.movements.find((m) => m.type === 'removal')).toBeUndefined();
   });
 });
 
