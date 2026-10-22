@@ -269,7 +269,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
               )}
             </div>
             {dismissible && (
-              <button type="button" aria-label="Close dialog" onClick={onClose} className="-mr-1.5 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition-colors duration-100 hover:bg-[#eef1f6] hover:text-ink active:scale-95">
+              <button type="button" aria-label="Close dialog" onClick={onClose} className="-mr-2 -mt-1 grid h-9 w-9 min-h-[36px] min-w-[36px] sm:h-8 sm:w-8 place-items-center rounded-full text-muted transition-colors duration-100 hover:bg-[#eef1f6] hover:text-ink active:scale-95">
                 <X size={18} />
               </button>
             )}
@@ -279,7 +279,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
           {children}
         </div>
         {footer && (
-          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-line px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3.5">{footer}</div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-line px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3.5 max-[380px]:flex-col max-[380px]:items-stretch">{footer}</div>
         )}
       </div>
     </div>,

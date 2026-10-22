@@ -22,25 +22,25 @@ export function CardHead({ title, sub, right }: { title: string; sub?: string; r
 export function MetricCard({ label, value, foot, tone }: { label: string; value: ReactNode; foot?: string; tone?: 'warn' | 'danger' }) {
   return (
     <Card className="p-[17px] max-md:p-[13px]">
-      <div className="text-xs text-muted">{label}</div>
-      <div className={cn('tabular mb-[5px] mt-3 text-[27px] font-extrabold leading-tight tracking-[-1px] max-md:text-[23px]', tone === 'warn' && 'text-warn', tone === 'danger' && 'text-danger')}>
+      <div className="text-xs text-muted truncate">{label}</div>
+      <div className={cn('tabular mb-[5px] mt-3 text-[27px] font-extrabold leading-tight tracking-[-1px] max-sm:text-[21px] max-md:text-[23px] truncate', tone === 'warn' && 'text-warn', tone === 'danger' && 'text-danger')}>
         {value}
       </div>
-      {foot && <div className="text-[10px] text-muted">{foot}</div>}
+      {foot && <div className="text-[10px] text-muted truncate">{foot}</div>}
     </Card>
   );
 }
 
 export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow: string; title: string; sub?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex items-center justify-between gap-4 max-md:items-start">
+    <div className="mb-6 flex items-center justify-between gap-4 max-md:items-start max-sm:flex-col max-sm:items-stretch">
       <div className="min-w-0">
         <div className="mb-[9px] text-[10px] font-extrabold uppercase tracking-[1.3px] text-[#8993a4]">{eyebrow}</div>
         {/* Tight tracking + leading on large type; body stays near 0. */}
-        <h1 className="text-[29px] font-extrabold leading-[1.15] tracking-[-1px] max-md:text-[25px]">{title}</h1>
-        {sub && <p className="mt-2 text-xs text-muted">{sub}</p>}
+        <h1 className="text-[29px] font-extrabold leading-[1.15] tracking-[-1px] max-sm:text-[22px] max-md:text-[25px]">{title}</h1>
+        {sub && <p className="mt-2 text-xs text-muted leading-relaxed">{sub}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-wrap max-sm:pt-1">{actions}</div>}
     </div>
   );
 }

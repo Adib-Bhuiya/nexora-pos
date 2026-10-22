@@ -66,10 +66,10 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-[#f5f7fa] px-4 py-8">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-[#f5f7fa] px-3.5 py-6 sm:px-4 sm:py-8">
       <div className="w-full max-w-md">
         {/* Brand Header */}
-        <div className="mb-7 text-center">
+        <div className="mb-6 sm:mb-7 text-center">
           <div className="mx-auto mb-3.5 grid h-14 w-14 place-items-center rounded-2xl bg-brand text-2xl font-black text-white shadow-[0_10px_25px_#2648ab3d]">
             N
           </div>
@@ -82,7 +82,7 @@ function ResetPasswordForm() {
         </div>
 
         {/* Card */}
-        <div className="overflow-hidden rounded-2xl border border-line bg-white p-7 shadow-[0_12px_40px_#1720330f]">
+        <div className="overflow-hidden rounded-2xl border border-line bg-white p-5 sm:p-7 shadow-[0_12px_40px_#1720330f]">
           {success ? (
             <div className="space-y-5 text-center">
               <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-100 text-emerald-600">
@@ -103,7 +103,7 @@ function ResetPasswordForm() {
                 type="button"
                 variant="primary"
                 onClick={() => router.push('/')}
-                className="w-full py-2.5 font-bold"
+                className="w-full min-h-[44px] py-2.5 font-bold"
               >
                 Sign In With New Password <ArrowRight size={15} />
               </Button>
@@ -162,7 +162,7 @@ function ResetPasswordForm() {
                 type="submit"
                 variant="primary"
                 loading={busy}
-                className="w-full py-2.5 font-bold"
+                className="w-full min-h-[44px] py-2.5 font-bold"
               >
                 <Lock size={15} /> Reset Password
               </Button>
@@ -171,7 +171,7 @@ function ResetPasswordForm() {
                 <button
                   type="button"
                   onClick={() => router.push('/')}
-                  className="text-xs font-semibold text-muted hover:text-ink"
+                  className="text-xs font-semibold text-muted hover:text-ink cursor-pointer"
                 >
                   Return to Sign In
                 </button>

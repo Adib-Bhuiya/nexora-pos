@@ -71,7 +71,7 @@ export function Avatar({ initials, size = 36, title }: { initials: string; size?
 
 export function TableWrap({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-width:thin] -mx-px">
       <table className="w-full border-collapse whitespace-nowrap text-left">{children}</table>
     </div>
   );

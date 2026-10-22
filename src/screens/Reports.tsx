@@ -63,12 +63,12 @@ export default function Reports() {
         title="Reports"
         sub={`Last ${periodWord} · profit uses each product’s recorded cost`}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
             <Select aria-label="Period length" value={count} onChange={(e) => setSpan((s) => ({ ...s, [mode]: Number(e.target.value) }))} className="!w-auto">
               {(mode === 'daily' ? [7, 14, 30] : [3, 6, 12]).map((n) => <option key={n} value={n}>Last {n} {mode === 'daily' ? 'days' : 'months'}</option>)}
             </Select>
             <Segmented<Mode> label="Report period" value={mode} onChange={setMode} options={[{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }]} />
-          </>
+          </div>
         }
       />
 

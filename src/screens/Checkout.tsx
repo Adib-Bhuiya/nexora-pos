@@ -29,6 +29,7 @@ export default function Checkout() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [payOpen, setPayOpen] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [done, setDone] = useState<Sale | null>(null);
   const [doneOpen, setDoneOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -151,7 +152,7 @@ export default function Checkout() {
           ) : list.length === 0 ? (
             <Card><EmptyState icon={<Search size={20} />} title="No matching products" text="Try a different search or category." action={<Button onClick={() => { setQuery(''); setCategory('all'); }}>Clear filters</Button>} /></Card>
           ) : (
-            <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-3 min-[1500px]:grid-cols-4 max-md:gap-2.5">
+            <div className="grid grid-cols-1 min-[340px]:grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-2 lg:grid-cols-3 min-[1500px]:grid-cols-4">
               {list.map((p) => {
                 const status = stockStatus(p.stock, settings.lowStockThreshold);
                 const inCart = qtyIn(p.id);
@@ -163,15 +164,15 @@ export default function Checkout() {
                     aria-disabled={p.stock < 1}
                     aria-label={`${p.name}, ${f.money(p.price)}, ${p.stock} in stock${inCart ? `, ${inCart} in cart` : ''}`}
                     className={cn(
-                      'relative rounded-[14px] border bg-white p-3.5 text-left shadow-card transition-[transform,border-color,box-shadow] duration-100 hover:border-[#c8d6ff] active:scale-[.97]',
+                      'relative rounded-[14px] border bg-white p-2.5 sm:p-3.5 text-left shadow-card transition-[transform,border-color,box-shadow] duration-100 hover:border-[#c8d6ff] active:scale-[.97]',
                       inCart ? 'border-brand' : 'border-line',
                       p.stock < 1 && 'opacity-55',
                     )}
                   >
                     {inCart > 0 && <span className="absolute right-2.5 top-2.5 grid h-[22px] min-w-[22px] place-items-center rounded-full bg-brand px-1.5 text-[11px] font-extrabold text-white">{inCart}</span>}
                     <ProductCardMedia url={p.imageUrl} name={p.name} tone={p.tone} />
-                    <div className="line-clamp-2 min-h-[34px] text-xs font-bold leading-[1.4]">{p.name}</div>
-                    <div className="mt-1.5 flex items-center justify-between gap-1">
+                    <div className="line-clamp-2 min-h-[34px] text-xs font-bold leading-[1.4] break-words">{p.name}</div>
+                    <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-1">
                       <span className="tabular text-[13px] font-extrabold text-brand">{f.money(p.price)}</span>
                       <span className={cn('text-[10px] font-semibold', status === 'good' ? 'text-muted' : status === 'low' ? 'text-warn' : 'text-danger')}>{status === 'out' ? 'Out of stock' : `${p.stock} left`}</span>
                     </div>
@@ -185,14 +186,27 @@ export default function Checkout() {
         <CartPanel onCheckout={() => setPayOpen(true)} />
       </div>
 
-      {/* Floating summary on phones, where the cart sits below the grid. */}
+      {/* Floating summary on phones, where the cart sits below the grid. Tap to open cart drawer. */}
       {cart.itemCount > 0 && (
-        <a href="#cart" className="material fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-30 flex items-center justify-between rounded-2xl border border-line px-4 py-3 shadow-[0_8px_28px_#17203322] active:scale-[.98] md:hidden">
-          <span className="flex items-center gap-2 text-xs font-bold"><ShoppingCart size={16} aria-hidden /> {cart.itemCount} item{cart.itemCount === 1 ? '' : 's'}</span>
-          <span className="tabular text-[15px] font-extrabold">{f.money(cart.totals.total)}</span>
-        </a>
+        <button
+          type="button"
+          onClick={() => setMobileCartOpen(true)}
+          className="material fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-30 flex items-center justify-between rounded-2xl border border-line px-4 py-3 shadow-[0_8px_28px_#17203322] active:scale-[.98] md:hidden cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-xs font-bold"><ShoppingCart size={16} aria-hidden /> {cart.itemCount} item{cart.itemCount === 1 ? '' : 's'} · View cart</span>
+          <span className="tabular text-[15px] font-extrabold text-brand">{f.money(cart.totals.total)}</span>
+        </button>
       )}
       {cart.itemCount > 0 && <div className="h-16 md:hidden" aria-hidden />}
+
+      <Dialog
+        open={mobileCartOpen}
+        onClose={() => setMobileCartOpen(false)}
+        size="md"
+        title="Current cart"
+      >
+        <CartBody onCheckout={() => { setMobileCartOpen(false); setPayOpen(true); }} isModal />
+      </Dialog>
 
       <PayDialog
         open={payOpen}
@@ -209,79 +223,87 @@ export default function Checkout() {
 }
 
 function CartPanel({ onCheckout }: { onCheckout: () => void }) {
+  return (
+    <aside id="cart" aria-label="Cart" className="scroll-mt-[150px] md:sticky md:top-[96px]">
+      <Card className="p-[19px] max-md:p-3.5">
+        <CartBody onCheckout={onCheckout} />
+      </Card>
+    </aside>
+  );
+}
+
+function CartBody({ onCheckout, isModal }: { onCheckout: () => void; isModal?: boolean }) {
   const cart = useCart();
   const { settings } = useStore();
   const f = useFormat();
   const t = cart.totals;
 
   return (
-    <aside id="cart" aria-label="Cart" className="scroll-mt-[150px] md:sticky md:top-[96px]">
-      <Card className="p-[19px] max-md:p-3.5">
-        <div className="mb-3.5 flex items-center justify-between">
-          <h2 className="text-[15px] font-extrabold tracking-[-0.2px]">Current cart</h2>
-          {cart.lines.length > 0 && <Button size="sm" variant="ghost" onClick={cart.clear}>Clear</Button>}
-        </div>
+    <div>
+      <div className="mb-3.5 flex items-center justify-between">
+        {!isModal && <h2 className="text-[15px] font-extrabold tracking-[-0.2px]">Current cart</h2>}
+        {cart.lines.length > 0 && <Button size="sm" variant="ghost" onClick={cart.clear} className="ml-auto">Clear</Button>}
+      </div>
 
-        {cart.lines.length === 0 ? (
-          <EmptyState icon={<ShoppingCart size={20} />} title="Cart is empty" text="Tap a product to add it." />
-        ) : (
-          <ul className="max-h-[42vh] divide-y divide-[#edf0f4] overflow-y-auto overscroll-contain md:max-h-[44vh]">
-            {cart.lines.map((l) => (
-              <li key={l.product.id} className="py-3">
-                <div className="flex items-start gap-3">
-                  <ProductThumb
-                    imageUrl={l.product.imageUrl}
-                    tone={l.product.tone}
-                    size={34}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold leading-snug">{l.product.name}</div>
-                    <div className="tabular text-[11px] text-muted">{f.money(l.product.price)} each</div>
-                  </div>
-                  <div className="tabular text-xs font-extrabold">{f.money(l.lineTotal)}</div>
+      {cart.lines.length === 0 ? (
+        <EmptyState icon={<ShoppingCart size={20} />} title="Cart is empty" text="Tap a product to add it." />
+      ) : (
+        <ul className={cn("divide-y divide-[#edf0f4] overflow-y-auto overscroll-contain", isModal ? "max-h-[50dvh]" : "max-h-[42vh] md:max-h-[44vh]")}>
+          {cart.lines.map((l) => (
+            <li key={l.product.id} className="py-3">
+              <div className="flex items-start gap-3">
+                <ProductThumb
+                  imageUrl={l.product.imageUrl}
+                  tone={l.product.tone}
+                  size={34}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold leading-snug break-words">{l.product.name}</div>
+                  <div className="tabular text-[11px] text-muted">{f.money(l.product.price)} each</div>
                 </div>
-                <div className="mt-2 flex items-center justify-between pl-[46px]">
-                  <div className="inline-flex items-center gap-1">
-                    <button type="button" aria-label={`Decrease ${l.product.name}`} onClick={() => cart.setQty(l.product.id, l.qty - 1)} className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-white transition-transform duration-100 active:scale-90"><Minus size={14} /></button>
-                    <span className="tabular w-8 text-center text-xs font-extrabold" aria-live="polite">{l.qty}</span>
-                    <button type="button" aria-label={`Increase ${l.product.name}`} onClick={() => cart.setQty(l.product.id, l.qty + 1)} disabled={l.qty >= l.product.stock} className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-white transition-transform duration-100 active:scale-90 disabled:opacity-40"><Plus size={14} /></button>
-                  </div>
-                  <button type="button" onClick={() => cart.remove(l.product.id)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-danger hover:bg-[#fff5f6]"><Trash2 size={12} aria-hidden /> Remove</button>
-                </div>
-                {l.overStock && <p role="alert" className="mt-1.5 pl-[46px] text-[11px] font-semibold text-danger">Only {l.product.stock} in stock. Lower the quantity.</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="mt-3.5 border-t border-[#edf0f4] pt-3.5 text-xs">
-          <div className="tabular space-y-2">
-            <div className="flex justify-between"><span className="text-muted">Subtotal</span><b>{f.money(t.subtotal)}</b></div>
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="discount" className="text-muted">Discount</label>
-              <div className="flex items-center gap-1.5">
-                <Segmented<'fixed' | 'percent'> label="Discount type" value={cart.discountType} onChange={cart.setDiscountType} options={[{ value: 'fixed', label: f.symbol }, { value: 'percent', label: '%' }]} />
-                <Input id="discount" type="number" inputMode="decimal" min={0} step="any" value={cart.discountInput} onChange={(e) => cart.setDiscountInput(e.target.value)} placeholder="0" aria-invalid={!!cart.discountError || undefined} className="w-[84px] !py-[7px] text-right" />
+                <div className="tabular text-xs font-extrabold">{f.money(l.lineTotal)}</div>
               </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-0 sm:pl-[46px]">
+                <div className="inline-flex items-center gap-1">
+                  <button type="button" aria-label={`Decrease ${l.product.name}`} onClick={() => cart.setQty(l.product.id, l.qty - 1)} className="grid h-8 w-8 min-h-[32px] min-w-[32px] place-items-center rounded-lg border border-line bg-white transition-transform duration-100 active:scale-90"><Minus size={14} /></button>
+                  <span className="tabular w-8 text-center text-xs font-extrabold" aria-live="polite">{l.qty}</span>
+                  <button type="button" aria-label={`Increase ${l.product.name}`} onClick={() => cart.setQty(l.product.id, l.qty + 1)} disabled={l.qty >= l.product.stock} className="grid h-8 w-8 min-h-[32px] min-w-[32px] place-items-center rounded-lg border border-line bg-white transition-transform duration-100 active:scale-90 disabled:opacity-40"><Plus size={14} /></button>
+                </div>
+                <button type="button" onClick={() => cart.remove(l.product.id)} className="inline-flex min-h-[32px] items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-danger hover:bg-[#fff5f6]"><Trash2 size={12} aria-hidden /> Remove</button>
+              </div>
+              {l.overStock && <p role="alert" className="mt-1.5 pl-0 sm:pl-[46px] text-[11px] font-semibold text-danger">Only {l.product.stock} in stock. Lower the quantity.</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-3.5 border-t border-[#edf0f4] pt-3.5 text-xs">
+        <div className="tabular space-y-2">
+          <div className="flex justify-between"><span className="text-muted">Subtotal</span><b>{f.money(t.subtotal)}</b></div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="discount" className="text-muted">Discount</label>
+            <div className="flex items-center gap-1.5">
+              <Segmented<'fixed' | 'percent'> label="Discount type" value={cart.discountType} onChange={cart.setDiscountType} options={[{ value: 'fixed', label: f.symbol }, { value: 'percent', label: '%' }]} />
+              <Input id="discount" type="number" inputMode="decimal" min={0} step="any" value={cart.discountInput} onChange={(e) => cart.setDiscountInput(e.target.value)} placeholder="0" aria-invalid={!!cart.discountError || undefined} className="w-[78px] sm:w-[84px] !py-[7px] text-right" />
             </div>
-            {cart.discountError && <p role="alert" className="text-right text-[11px] text-danger">{cart.discountError}</p>}
-            {t.discount > 0 && <div className="flex justify-between"><span className="text-muted">Discount applied</span><b className="text-ok">−{f.money(t.discount)}</b></div>}
-            {settings.taxEnabled && <div className="flex justify-between"><span className="text-muted">{settings.taxLabel} ({settings.taxRate}%{settings.taxInclusive ? ', included' : ''})</span><b>{f.money(t.tax)}</b></div>}
-            <div className="flex items-baseline justify-between border-t border-[#edf0f4] pt-3 text-[18px] font-extrabold tracking-[-0.4px]"><span>Total</span><span>{f.money(t.total)}</span></div>
           </div>
-
-          <label htmlFor="method" className="mb-1.5 mt-4 block font-semibold text-muted">Payment method</label>
-          <Select id="method" value={cart.method} onChange={(e) => cart.setMethod(e.target.value as PaymentMethod)}>
-            {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
-          </Select>
-
-          <Button variant="primary" className="mt-3.5 w-full !py-3 !text-[13px]" onClick={onCheckout} disabled={cart.lines.length === 0 || cart.hasIssues || t.total <= 0}>
-            Complete sale · {f.money(t.total)}
-          </Button>
-          <p className="mt-2.5 text-center text-[10px] text-muted">Transactions are saved locally on this device.</p>
+          {cart.discountError && <p role="alert" className="text-right text-[11px] text-danger">{cart.discountError}</p>}
+          {t.discount > 0 && <div className="flex justify-between"><span className="text-muted">Discount applied</span><b className="text-ok">−{f.money(t.discount)}</b></div>}
+          {settings.taxEnabled && <div className="flex justify-between"><span className="text-muted">{settings.taxLabel} ({settings.taxRate}%{settings.taxInclusive ? ', included' : ''})</span><b>{f.money(t.tax)}</b></div>}
+          <div className="flex items-baseline justify-between border-t border-[#edf0f4] pt-3 text-[18px] font-extrabold tracking-[-0.4px]"><span>Total</span><span>{f.money(t.total)}</span></div>
         </div>
-      </Card>
-    </aside>
+
+        <label htmlFor="method" className="mb-1.5 mt-4 block font-semibold text-muted">Payment method</label>
+        <Select id="method" value={cart.method} onChange={(e) => cart.setMethod(e.target.value as PaymentMethod)}>
+          {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
+        </Select>
+
+        <Button variant="primary" className="mt-3.5 w-full !min-h-[44px] !py-3 !text-[13px]" onClick={onCheckout} disabled={cart.lines.length === 0 || cart.hasIssues || t.total <= 0}>
+          Complete sale · {f.money(t.total)}
+        </Button>
+        <p className="mt-2.5 text-center text-[10px] text-muted">Transactions are saved locally on this device.</p>
+      </div>
+    </div>
   );
 }
 
@@ -368,7 +390,7 @@ function PayDialog({ open, onClose, onDone }: { open: boolean; onClose: () => vo
           <TextField label="Amount received" type="number" inputMode="decimal" min={0} step="any" value={tendered} onChange={(e) => setTendered(e.target.value)} error={tenderError} data-autofocus />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {suggestTenders(total).map((v) => (
-              <button key={v} type="button" onClick={() => setTendered(String(v))} className="rounded-full border border-line bg-white px-3 py-1.5 text-[11px] font-bold transition-transform duration-100 hover:bg-[#f8faff] active:scale-95">
+              <button key={v} type="button" onClick={() => setTendered(String(v))} className="min-h-[38px] rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-bold transition-transform duration-100 hover:bg-[#f8faff] active:scale-95 cursor-pointer">
                 {v === total ? 'Exact' : f.money(v)}
               </button>
             ))}
@@ -394,8 +416,8 @@ function DoneDialog({ sale, open, onNew }: { sale: Sale | null; open: boolean; o
       footer={
         sale && (
           <>
-            <Button onClick={() => printSale(sale)}><Printer size={14} aria-hidden /> Print receipt</Button>
-            <Button variant="primary" onClick={onNew} data-autofocus>New sale</Button>
+            <Button onClick={() => printSale(sale)} className="min-h-[40px]"><Printer size={14} aria-hidden /> Print receipt</Button>
+            <Button variant="primary" onClick={onNew} data-autofocus className="min-h-[40px]">New sale</Button>
           </>
         )
       }
@@ -422,7 +444,7 @@ function ProductCardMedia({ url, name, tone }: { url?: string; name: string; ton
 
   return (
     <div
-      className="mb-3 relative flex h-[78px] w-full items-center justify-center overflow-hidden rounded-xl"
+      className="mb-2.5 sm:mb-3 relative flex h-[72px] sm:h-[78px] w-full items-center justify-center overflow-hidden rounded-xl"
       style={{ background: tone || '#f1f5f9' }}
       aria-hidden
     >
@@ -435,7 +457,7 @@ function ProductCardMedia({ url, name, tone }: { url?: string; name: string; ton
           onError={() => setError(true)}
         />
       ) : (
-        <Package size={30} className="text-[#8896ab]" />
+        <Package size={28} className="text-[#8896ab]" />
       )}
     </div>
   );

@@ -103,17 +103,17 @@ export default function Sales() {
             </Select>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="max-w-full overflow-x-auto">
+            <div className="max-w-full overflow-x-auto [scrollbar-width:none]">
               <Segmented<Preset> label="Date range" value={preset} onChange={setPreset} options={[{ value: 'today', label: 'Today' }, { value: '7d', label: '7 days' }, { value: '30d', label: '30 days' }, { value: 'all', label: 'All' }, { value: 'custom', label: 'Custom' }]} />
             </div>
             {preset === 'custom' && (
-              <div className="flex items-center gap-2">
-                <Input type="date" aria-label="From date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="!w-auto" />
-                <span className="text-xs text-muted">to</span>
-                <Input type="date" aria-label="To date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="!w-auto" />
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <Input type="date" aria-label="From date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="!w-full sm:!w-auto" />
+                <span className="text-xs text-muted max-sm:hidden">to</span>
+                <Input type="date" aria-label="To date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="!w-full sm:!w-auto" />
               </div>
             )}
-            <span className="tabular ml-auto text-xs text-muted">{rows.length} sale{rows.length === 1 ? '' : 's'} · <b className="text-ink">{f.money(total)}</b></span>
+            <span className="tabular ml-auto text-xs text-muted max-sm:ml-0 max-sm:w-full">{rows.length} sale{rows.length === 1 ? '' : 's'} · <b className="text-ink">{f.money(total)}</b></span>
           </div>
           {customInvalid && <p role="alert" className="text-[11px] text-danger">The start date is after the end date.</p>}
         </div>

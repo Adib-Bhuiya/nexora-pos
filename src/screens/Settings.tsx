@@ -274,15 +274,15 @@ export default function SettingsPage() {
                 {users
                   .filter((u) => u.role === 'cashier')
                   .map((cashier) => (
-                    <div key={cashier.id} className="flex items-center justify-between gap-3 p-3.5 bg-white">
-                      <div className="flex items-center gap-3">
+                    <div key={cashier.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white">
+                      <div className="flex items-center gap-3 min-w-0">
                         <Avatar initials={cashier.initials} size={36} />
-                        <div>
-                          <div className="text-xs font-bold text-ink">{cashier.name}</div>
-                          <div className="text-[11px] text-muted">ID: {cashier.id} · PIN configured</div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-ink truncate">{cashier.name}</div>
+                          <div className="text-[11px] text-muted truncate">ID: {cashier.id} · PIN configured</div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                         <Button
                           size="sm"
                           variant="secondary"
@@ -409,9 +409,9 @@ export default function SettingsPage() {
         </fieldset>
 
         {canWrite && (
-          <div className="material sticky bottom-3 z-20 flex items-center justify-between gap-3 rounded-[14px] border border-line px-4 py-3 shadow-[0_8px_28px_#1720331f] lg:col-span-2">
+          <div className="material sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-line px-4 py-3 shadow-[0_8px_28px_#1720331f] lg:col-span-2">
             <span className="text-xs text-muted">{dirty ? 'You have unsaved changes.' : 'All changes saved.'}</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto justify-end">
               <Button onClick={() => { setDraft(toDraft(settings)); setErrors({}); }} disabled={!dirty || busy}>Discard</Button>
               <Button variant="primary" onClick={() => void save()} loading={busy} disabled={!dirty}>Save settings</Button>
             </div>

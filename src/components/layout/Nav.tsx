@@ -74,7 +74,7 @@ export function MobileNav() {
             href={r.path}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border px-3 py-[9px] text-xs font-bold transition-[background-color,transform] duration-100 active:scale-[.97]',
+              'flex shrink-0 min-h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border px-3.5 py-2 text-xs font-bold transition-[background-color,transform] duration-100 active:scale-[.97]',
               active ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink',
             )}
           >

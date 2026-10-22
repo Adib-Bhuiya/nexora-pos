@@ -112,10 +112,10 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-[#f5f7fa] px-4 py-8">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-[#f5f7fa] px-3.5 py-6 sm:px-4 sm:py-8">
       <div className="w-full max-w-md">
         {/* Brand Header */}
-        <div className="mb-7 text-center">
+        <div className="mb-6 sm:mb-7 text-center">
           <div className="mx-auto mb-3.5 grid h-14 w-14 place-items-center rounded-2xl bg-brand text-2xl font-black text-white shadow-[0_10px_25px_#2648ab3d]">
             N
           </div>
@@ -140,7 +140,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 setShowPassword(false);
               }}
               className={cn(
-                'flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all duration-150',
+                'flex items-center justify-center gap-2 rounded-xl py-2.5 min-h-[40px] transition-all duration-150 cursor-pointer',
                 tab === 'owner' && !showForgotPassword
                   ? 'bg-white text-brand shadow-sm font-extrabold'
                   : 'text-muted hover:text-ink'
@@ -157,7 +157,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 setShowPassword(false);
               }}
               className={cn(
-                'flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all duration-150',
+                'flex items-center justify-center gap-2 rounded-xl py-2.5 min-h-[40px] transition-all duration-150 cursor-pointer',
                 tab === 'cashier' && !showForgotPassword
                   ? 'bg-white text-brand shadow-sm font-extrabold'
                   : 'text-muted hover:text-ink'
@@ -167,7 +167,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             </button>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {showForgotPassword ? (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                 <div>
@@ -178,7 +178,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       setForgotError(null);
                       setForgotSuccess(null);
                     }}
-                    className="mb-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"
+                    className="mb-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline cursor-pointer"
                   >
                     <ArrowLeft size={13} /> Back to Sign In
                   </button>
@@ -213,7 +213,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         setShowForgotPassword(false);
                         setForgotSuccess(null);
                       }}
-                      className="w-full py-2.5 font-bold"
+                      className="w-full min-h-[44px] py-2.5 font-bold"
                     >
                       Return to Sign In
                     </Button>
@@ -234,7 +234,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       type="submit"
                       variant="primary"
                       loading={forgotBusy}
-                      className="w-full py-2.5 font-bold"
+                      className="w-full min-h-[44px] py-2.5 font-bold"
                     >
                       <Mail size={15} /> Send Recovery Link
                     </Button>
@@ -246,7 +246,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                           setShowForgotPassword(false);
                           setForgotError(null);
                         }}
-                        className="text-xs font-semibold text-muted hover:text-ink"
+                        className="text-xs font-semibold text-muted hover:text-ink cursor-pointer"
                       >
                         Cancel and return to sign in
                       </button>
@@ -298,7 +298,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 grid h-8 w-8 min-h-[36px] min-w-[36px] place-items-center rounded p-1 text-muted hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand cursor-pointer"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       title={showPassword ? 'Hide password' : 'Show password'}
                     >
@@ -317,7 +317,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       setForgotError(null);
                       setForgotSuccess(null);
                     }}
-                    className="font-semibold text-brand hover:underline"
+                    className="font-semibold text-brand hover:underline cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -327,7 +327,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   type="submit"
                   variant="primary"
                   loading={ownerBusy}
-                  className="w-full py-2.5 font-bold"
+                  className="w-full min-h-[44px] py-2.5 font-bold"
                 >
                   <LogIn size={15} /> Sign In as Owner
                 </Button>
@@ -372,7 +372,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   type="submit"
                   variant="primary"
                   loading={cashierBusy}
-                  className="w-full py-2.5 font-bold"
+                  className="w-full min-h-[44px] py-2.5 font-bold"
                 >
                   <UserCheck size={15} /> Unlock Register
                 </Button>

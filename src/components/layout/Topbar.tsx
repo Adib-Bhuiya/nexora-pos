@@ -16,14 +16,14 @@ export function Topbar() {
   return (
     <header className="material sticky top-0 z-30 flex h-[62px] items-center justify-between border-b border-line px-3.5 md:h-[72px] md:px-[26px]">
       <Link href="/" className="flex min-w-0 shrink items-center gap-2 text-[15px] font-extrabold tracking-[-0.4px] md:gap-3 md:text-[length:inherit]" aria-label={`${BRAND.name} ${BRAND.suffix} dashboard`}>
-        <div className="grid h-[34px] w-[34px] place-items-center rounded-xl bg-brand text-[19px] text-white md:h-[39px] md:w-[39px]">N</div>
-        <div className="leading-tight">
-          {BRAND.name} <span className="text-brand">{BRAND.suffix}</span>
-          <small className="mt-0.5 block text-[10px] font-semibold tracking-[1.2px] text-muted max-[460px]:hidden">{BRAND.tagline}</small>
+        <div className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl bg-brand text-[19px] text-white md:h-[39px] md:w-[39px]">N</div>
+        <div className="leading-tight truncate min-w-0">
+          <span className="truncate">{BRAND.name}</span> <span className="text-brand">{BRAND.suffix}</span>
+          <small className="mt-0.5 block text-[10px] font-semibold tracking-[1.2px] text-muted max-[460px]:hidden truncate">{BRAND.tagline}</small>
         </div>
       </Link>
 
-      <div className="flex items-center gap-2 md:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
         {/* Instant Sync Button: immediately fetches latest products from server */}
         <button
           type="button"
@@ -31,10 +31,10 @@ export function Topbar() {
           disabled={refreshingProducts}
           aria-label={refreshingProducts ? 'Refreshing products…' : 'Sync products with server'}
           title="Fetch latest products from server"
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-[9px] border border-line bg-white px-3 text-xs font-bold max-[420px]:px-2.5 transition-[transform,background-color] duration-100 hover:bg-[#f8faff] active:scale-[.97] disabled:opacity-60 cursor-pointer"
+          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-[9px] border border-line bg-white px-2.5 sm:px-3 text-xs font-bold transition-[transform,background-color] duration-100 hover:bg-[#f8faff] active:scale-[.97] disabled:opacity-60 cursor-pointer"
         >
           <RefreshCw size={14} className={cn(refreshingProducts && 'animate-spin', !refreshingProducts && 'text-brand')} />
-          <span className="max-[420px]:hidden">{refreshingProducts ? 'Syncing…' : 'Sync'}</span>
+          <span className="max-[440px]:hidden">{refreshingProducts ? 'Syncing…' : 'Sync'}</span>
         </button>
 
         <UserMenu />
@@ -72,7 +72,7 @@ function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${user.name}, ${ROLE_LABEL[user.role]}. Open user menu`}
-        className="flex items-center gap-2 rounded-full p-1 pl-1.5 pr-2 transition-all duration-100 hover:bg-[#f0f3f8] active:scale-95 cursor-pointer"
+        className="flex min-h-[38px] items-center gap-2 rounded-full p-1 pl-1.5 pr-2 transition-all duration-100 hover:bg-[#f0f3f8] active:scale-95 cursor-pointer"
       >
         <Avatar initials={user.initials} size={34} />
         <span className="hidden sm:inline text-xs font-bold text-ink max-w-[120px] truncate">
@@ -84,7 +84,7 @@ function UserMenu() {
       </button>
 
       {open && (
-        <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[240px] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
+        <div role="menu" className="pop-enter material absolute right-0 top-[calc(100%+8px)] z-40 w-[240px] max-w-[calc(100vw-24px)] origin-top-right rounded-[14px] border border-line p-2 shadow-[0_16px_48px_#1720332e]">
           <div className="px-2.5 pb-2 pt-1.5">
             <div className="text-[13px] font-extrabold truncate">{user.name}</div>
             <div className="text-[11px] text-muted flex items-center justify-between">

@@ -343,7 +343,7 @@ export function ProductFormDialog({
               <button
                 type="button"
                 onClick={() => setImageMode('upload')}
-                className={`rounded-md px-2.5 py-1 transition-colors ${
+                className={`min-h-[30px] rounded-md px-2.5 py-1 transition-colors cursor-pointer ${
                   imageMode === 'upload'
                     ? 'bg-white text-ink shadow-sm'
                     : 'text-muted hover:text-ink'
@@ -354,7 +354,7 @@ export function ProductFormDialog({
               <button
                 type="button"
                 onClick={() => setImageMode('url')}
-                className={`rounded-md px-2.5 py-1 transition-colors ${
+                className={`min-h-[30px] rounded-md px-2.5 py-1 transition-colors cursor-pointer ${
                   imageMode === 'url'
                     ? 'bg-white text-ink shadow-sm'
                     : 'text-muted hover:text-ink'
@@ -379,7 +379,7 @@ export function ProductFormDialog({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading || busy}
-                className="flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#c8d1de] bg-white p-4 text-center transition-colors hover:border-brand hover:bg-brand/5 active:scale-[.99] disabled:opacity-60"
+                className="flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#c8d1de] bg-white p-4 text-center transition-colors hover:border-brand hover:bg-brand/5 active:scale-[.99] disabled:opacity-60 cursor-pointer"
               >
                 {uploading ? (
                   <>
@@ -424,32 +424,34 @@ export function ProductFormDialog({
           )}
 
           {imageUrl.trim() && (
-            <div className="flex items-center gap-3.5 rounded-lg border border-line bg-white p-2.5">
-              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-line bg-[#f1f5f9]">
-                {!previewBroken ? (
-                  <img
-                    src={imageUrl.trim()}
-                    alt="Preview"
-                    className="h-full w-full object-cover"
-                    onError={() => setPreviewBroken(true)}
-                  />
-                ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center text-muted">
-                    <ImageIcon size={20} />
-                    <span className="text-[9px]">Broken URL</span>
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-semibold text-ink">
-                  {imageUrl.startsWith('https://res.cloudinary.com')
-                    ? 'Cloudinary Hosted Image'
-                    : imageUrl}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 rounded-lg border border-line bg-white p-2.5">
+              <div className="flex items-center gap-3 min-w-0 flex-1 w-full">
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-line bg-[#f1f5f9]">
+                  {!previewBroken ? (
+                    <img
+                      src={imageUrl.trim()}
+                      alt="Preview"
+                      className="h-full w-full object-cover"
+                      onError={() => setPreviewBroken(true)}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center text-muted">
+                      <ImageIcon size={20} />
+                      <span className="text-[9px]">Broken URL</span>
+                    </div>
+                  )}
                 </div>
-                <div className="mt-0.5 text-[11px] text-muted">
-                  {previewBroken
-                    ? 'Unable to load preview from this URL.'
-                    : 'Preview loaded successfully.'}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-semibold text-ink">
+                    {imageUrl.startsWith('https://res.cloudinary.com')
+                      ? 'Cloudinary Hosted Image'
+                      : imageUrl}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted">
+                    {previewBroken
+                      ? 'Unable to load preview from this URL.'
+                      : 'Preview loaded successfully.'}
+                  </div>
                 </div>
               </div>
               <Button
@@ -457,7 +459,7 @@ export function ProductFormDialog({
                 variant="secondary"
                 onClick={handleRemoveImage}
                 disabled={uploading || busy}
-                className="text-danger hover:bg-red-50 hover:border-red-200"
+                className="w-full sm:w-auto text-danger hover:bg-red-50 hover:border-red-200"
               >
                 <X size={13} className="mr-1" /> Remove
               </Button>

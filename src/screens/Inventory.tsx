@@ -215,7 +215,7 @@ function StockDialog({ state, onClose }: { state: { kind: 'restock' | 'count'; p
         {isRestock && (
           <div className="flex flex-wrap gap-1.5">
             {[5, 10, 25, 50].map((q) => (
-              <button key={q} type="button" onClick={() => { setValue(String(q)); setError(''); }} className="rounded-full border border-line bg-white px-3 py-1.5 text-[11px] font-bold hover:bg-[#f8faff] active:scale-95">+{q}</button>
+              <button key={q} type="button" onClick={() => { setValue(String(q)); setError(''); }} className="min-h-[38px] min-w-[44px] rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-bold hover:bg-[#f8faff] active:scale-95 cursor-pointer">+{q}</button>
             ))}
           </div>
         )}
