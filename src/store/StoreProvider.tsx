@@ -29,6 +29,7 @@ import {
 } from '@/lib/auth-api';
 import { computeTotals, changeDue } from '@/lib/calc';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { can as canDo, type Permission } from '@/config/permissions';
 import * as commands from '@/db/commands';
 import { loadSnapshot, type Snapshot } from '@/db/snapshot';
@@ -553,6 +554,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       actions,
     };
   }, [snap, user, users, initialized, authenticated, online, deviceOnline, simulatedOffline, simulateFailure, syncing, pendingCount, failedCount, transport, doSync, changed, notify, actions]);
+
+  const pathname = usePathname();
+  if (pathname?.startsWith('/reset-password')) return <>{children}</>;
 
   if (bootError) return <BootError message={bootError} onRetry={() => void boot()} />;
   if (authLoading || !snap) return <Splash />;

@@ -49,7 +49,10 @@ function ResetPasswordForm() {
         confirmPassword,
       });
 
-      setSuccess(res.message || 'Password reset successfully.');
+      setSuccess(
+        res.message ||
+          'Password reset successfully. You can now sign in with your new password.'
+      );
       setPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -161,7 +164,7 @@ function ResetPasswordForm() {
                 loading={busy}
                 className="w-full py-2.5 font-bold"
               >
-                <Lock size={15} /> Update Password
+                <Lock size={15} /> Reset Password
               </Button>
 
               <div className="text-center pt-1">

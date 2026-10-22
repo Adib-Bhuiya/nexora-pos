@@ -25,6 +25,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (sw.offlineReady) notify('Ready to work offline.', { tone: 'success' });
   }, [sw.offlineReady, notify]);
 
+  if (pathname?.startsWith('/reset-password')) {
+    return (
+      <div id="app-root" className="min-h-dvh bg-bg">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div id="app-root" className="min-h-dvh bg-bg">
       <a href="#main" className="sr-only z-[70] rounded-md bg-white px-3 py-2 text-xs font-bold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">

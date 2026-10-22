@@ -84,23 +84,27 @@ describe('Auth Recovery & Cashier PIN Reset Flows', () => {
 
   describe('Part A: Owner Password Recovery via Email', () => {
     describe('forgotPassword endpoint logic', () => {
-      it('returns identical generic success message for unregistered email to prevent enumeration', async () => {
-        const res = await authService.forgotPassword({
-          email: 'nonexistent@store.com',
-          ipAddress: '192.168.1.10',
-        });
+      it('rejects unregistered recovery email with clear message and does not send email', async () => {
+        await expect(
+          authService.forgotPassword({
+            email: 'nonexistent@store.com',
+            ipAddress: '192.168.1.10',
+          })
+        ).rejects.toThrow('Invalid recovery email. Please enter the email address registered to the store owner account.');
 
-        expect(res.message).toContain('password reset instructions have been sent');
         expect(mockEmailSender).not.toHaveBeenCalled();
       });
 
-      it('returns generic message and does not send email if target user is not an owner', async () => {
-        const res = await authService.forgotPassword({
-          email: 'cashier@store.com',
-          ipAddress: '192.168.1.11',
-        });
+      it('rejects recovery request for non-owner/cashier email with clear message and does not send email', async () => {
+        await repos.userRepository.updateUser(cashierUser.id, { email: 'cashier@store.com' });
 
-        expect(res.message).toContain('password reset instructions have been sent');
+        await expect(
+          authService.forgotPassword({
+            email: 'cashier@store.com',
+            ipAddress: '192.168.1.11',
+          })
+        ).rejects.toThrow('Invalid recovery email. Please enter the email address registered to the store owner account.');
+
         expect(mockEmailSender).not.toHaveBeenCalled();
       });
 
@@ -110,7 +114,7 @@ describe('Auth Recovery & Cashier PIN Reset Flows', () => {
           ipAddress: '192.168.1.12',
         });
 
-        expect(res.message).toContain('password reset instructions have been sent');
+        expect(res.message).toContain('Password reset instructions have been sent');
         expect(mockEmailSender).toHaveBeenCalledTimes(1);
 
         const [recipient, resetUrl] = mockEmailSender.mock.calls[0];
@@ -124,34 +128,62 @@ describe('Auth Recovery & Cashier PIN Reset Flows', () => {
         expect(token!.length).toBe(64); // 32 bytes in hex = 64 characters
       });
 
+      it('enforces 15-minute cooldown on subsequent accepted reset requests', async () => {
+        // 1st request succeeds
+        const res1 = await authService.forgotPassword({
+          email: 'owner@store.com',
+          ipAddress: '192.168.1.15',
+        });
+        expect(res1.message).toContain('Password reset instructions have been sent');
+        expect(mockEmailSender).toHaveBeenCalledTimes(1);
+
+        // 2nd request during cooldown is rejected by server
+        await expect(
+          authService.forgotPassword({
+            email: 'owner@store.com',
+            ipAddress: '192.168.1.16',
+          })
+        ).rejects.toThrow(/You recently requested a password reset\. Please wait before requesting another one/);
+
+        // Crucial: no duplicate reset email dispatched during cooldown
+        expect(mockEmailSender).toHaveBeenCalledTimes(1);
+      });
+
       it('enforces IP rate limiting on forgotPassword requests', async () => {
         const ip = '10.0.0.50';
         for (let i = 0; i < 5; i++) {
-          await authService.forgotPassword({ email: `user${i}@store.com`, ipAddress: ip });
+          await expect(
+            authService.forgotPassword({ email: `unregistered${i}@store.com`, ipAddress: ip })
+          ).rejects.toThrow(/Invalid recovery email/);
         }
 
         // 6th attempt should be rate limited by IP
         await expect(
-          authService.forgotPassword({ email: 'user5@store.com', ipAddress: ip })
+          authService.forgotPassword({ email: 'owner@store.com', ipAddress: ip })
         ).rejects.toThrow(AuthRateLimitError);
       });
 
       it('enforces email rate limiting on forgotPassword requests', async () => {
         for (let i = 0; i < 3; i++) {
-          await authService.forgotPassword({ email: 'owner@store.com', ipAddress: `10.0.1.${i}` });
+          await expect(
+            authService.forgotPassword({ email: 'cashier-invalid@store.com', ipAddress: `10.0.1.${i}` })
+          ).rejects.toThrow(/Invalid recovery email/);
         }
 
         // 4th attempt from different IP but same email should be rate limited by email
         await expect(
-          authService.forgotPassword({ email: 'owner@store.com', ipAddress: '10.0.1.99' })
+          authService.forgotPassword({ email: 'cashier-invalid@store.com', ipAddress: '10.0.1.99' })
         ).rejects.toThrow(/Too many reset requests for this email address/);
       });
 
-      it('invalidates previous active reset tokens when a new one is requested', async () => {
+      it('invalidates previous active reset tokens when a new one is requested after cooldown', async () => {
         // Request 1st token
         await authService.forgotPassword({ email: 'owner@store.com', ipAddress: '192.168.1.20' });
         const firstTokenUrl = mockEmailSender.mock.calls[0][1];
         const firstToken = new URL(firstTokenUrl).searchParams.get('token')!;
+
+        // Reset cooldown to simulate cooldown expiration
+        await repos.rateLimitStore.reset(`forgot_cooldown:${ownerUser.id}`);
 
         // Request 2nd token
         await authService.forgotPassword({ email: 'owner@store.com', ipAddress: '192.168.1.21' });
@@ -171,7 +203,7 @@ describe('Auth Recovery & Cashier PIN Reset Flows', () => {
           token: secondToken,
           password: 'NewStrongPassword123',
         });
-        expect(resetRes.message).toContain('successfully');
+        expect(resetRes.message).toBe('Password reset successfully. You can now sign in with your new password.');
       });
 
       it('fails with safe error when email service is unconfigured', async () => {
@@ -190,6 +222,47 @@ describe('Auth Recovery & Cashier PIN Reset Flows', () => {
             ipAddress: '192.168.1.30',
           })
         ).rejects.toThrow('Email delivery service is currently not configured on this server.');
+      });
+
+      it('cleans up cooldown if email delivery fails, allowing the owner to retry', async () => {
+        mockEmailSender.mockResolvedValueOnce({ success: false, error: 'SMTP delivery timeout' });
+
+        await expect(
+          authService.forgotPassword({
+            email: 'owner@store.com',
+            ipAddress: '192.168.1.31',
+          })
+        ).rejects.toThrow('SMTP delivery timeout');
+
+        // Because early cooldown cleanup occurred, the retry is not blocked by cooldown
+        mockEmailSender.mockResolvedValueOnce({ success: true, messageId: 'msg-retry-ok' });
+        const retryRes = await authService.forgotPassword({
+          email: 'owner@store.com',
+          ipAddress: '192.168.1.32',
+        });
+        expect(retryRes.message).toContain('Password reset instructions have been sent');
+      });
+
+      it('cleans up cooldown if token creation fails, allowing the owner to retry', async () => {
+        const createTokenSpy = vi.spyOn(repos.passwordResetTokenRepository, 'createToken').mockRejectedValueOnce(
+          new Error('Database write failure')
+        );
+
+        await expect(
+          authService.forgotPassword({
+            email: 'owner@store.com',
+            ipAddress: '192.168.1.33',
+          })
+        ).rejects.toThrow('Database write failure');
+
+        createTokenSpy.mockRestore();
+
+        // Retry should succeed because cooldown was cleaned up on failure
+        const retryRes = await authService.forgotPassword({
+          email: 'owner@store.com',
+          ipAddress: '192.168.1.34',
+        });
+        expect(retryRes.message).toContain('Password reset instructions have been sent');
       });
     });
 
@@ -232,6 +305,36 @@ describe('Auth Recovery & Cashier PIN Reset Flows', () => {
         // Verify active session was revoked
         const session = await repos.sessionRepository.findActiveSessionByTokenHash('session-hash-owner-1');
         expect(session).toBeNull();
+
+        // Verify subsequent login with new password succeeds and old password fails
+        const loginRes = await authService.loginOwner({
+          email: ownerUser.email,
+          password: 'BrandNewOwnerPassword456',
+        });
+        expect(loginRes.user.id).toBe(ownerUser.id);
+
+        await expect(
+          authService.loginOwner({
+            email: ownerUser.email,
+            password: 'InitialOwnerPass123',
+          })
+        ).rejects.toThrow('Invalid email or password.');
+
+        // Verify cooldown remains active for the full 15 minutes even after successful password reset
+        await expect(
+          authService.forgotPassword({
+            email: ownerUser.email,
+            ipAddress: '192.168.1.99',
+          })
+        ).rejects.toThrow(/You recently requested a password reset\. Please wait before requesting another one/);
+
+        // Verify that once cooldown actually expires/resets, a new request is permitted
+        await repos.rateLimitStore.reset(`forgot_cooldown:${ownerUser.id}`);
+        const futureForgotRes = await authService.forgotPassword({
+          email: ownerUser.email,
+          ipAddress: '192.168.1.99',
+        });
+        expect(futureForgotRes.message).toContain('Password reset instructions have been sent');
       });
 
       it('rejects passwords shorter than 8 characters', async () => {

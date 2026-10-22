@@ -606,16 +606,11 @@ try {
   // --- Password Recovery & Cashier PIN Reset ---
 
   /**
-   * Initiates owner password recovery by verifying email, applying rate limits,
-   * generating a secure 256-bit token, storing only its SHA-256 hash, and emailing
-   * the reset link via Resend.
-   *
-   * Always returns a generic success message to prevent user enumeration attacks.
+   * Initiates owner password recovery by validating the registered owner email,
+   * applying rate limits and a 15-minute cooldown, generating a secure 256-bit token,
+   * storing only its SHA-256 hash, and emailing the reset link via Resend.
    */
   async forgotPassword(input: ForgotPasswordServiceInput): Promise<{ message: string }> {
-    const GENERIC_SUCCESS =
-      'If an owner account with that email exists, password reset instructions have been sent.';
-
     const ip = input.ipAddress || '127.0.0.1';
     const normalizedEmail = (input.email || '').trim().toLowerCase();
 
@@ -648,24 +643,51 @@ try {
     }
 
     // 3. Validation: basic email format check
+    const INVALID_OWNER_EMAIL_MSG =
+      'Invalid recovery email. Please enter the email address registered to the store owner account.';
+
     if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return { message: GENERIC_SUCCESS };
+      throw new AuthError(INVALID_OWNER_EMAIL_MSG, 400);
     }
 
     // 4. Query user by email
     const user = await this.deps.userRepo.findByEmail(normalizedEmail);
 
-    // Only actual, active store owner accounts can request password resets
-    if (!user || (!user.isOwner && user.role !== 'owner') || !user.active) {
-      return { message: GENERIC_SUCCESS };
+    // Only actual, active store owner accounts can request password resets.
+    // Reject unknown emails and emails belonging to cashiers or non-owners.
+    if (!user || (!user.isOwner && user.role !== 'owner')) {
+      throw new AuthError(INVALID_OWNER_EMAIL_MSG, 400);
     }
 
-    // 5. Check email provider configuration
+    if (!user.active) {
+      throw new AuthForbiddenError('Owner account is inactive. Please contact system support.');
+    }
+
+    // 5. Enforce 15-minute cooldown for accepted owner password reset requests
+    const cooldownKey = `forgot_cooldown:${user.id}`;
+    const cooldownCheck = await this.deps.rateLimitStore.consume(
+      cooldownKey,
+      1,
+      15 * 60 * 1000 // 15-minute window
+    );
+
+    if (!cooldownCheck.allowed) {
+      const retrySec = cooldownCheck.retryAfterSec ?? 900;
+      const minutes = Math.ceil(retrySec / 60);
+      const remainingTime = minutes > 1 ? `${minutes} minutes` : `${retrySec} seconds`;
+      throw new AuthRateLimitError(
+        `You recently requested a password reset. Please wait before requesting another one. Try again in ${remainingTime}.`,
+        retrySec
+      );
+    }
+
+    // 6. Check email provider configuration
     const isEmailConfigured =
       Boolean(this.deps.emailSender) ||
       Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim());
 
     if (!isEmailConfigured) {
+      await this.deps.rateLimitStore.reset(cooldownKey);
       throw new AuthError(
         'Email delivery service is currently not configured on this server.',
         503
@@ -674,56 +696,65 @@ try {
 
     const tokenRepo = this.deps.passwordResetTokenRepo;
     if (!tokenRepo) {
+      await this.deps.rateLimitStore.reset(cooldownKey);
       throw new AuthConfigurationError(
         'Password reset token repository is not configured.'
       );
     }
 
-    // 6. Invalidate previous active tokens for this owner to prevent token accumulation
-    await tokenRepo.invalidateTokensForUser(user.id);
+    // 7. Execute token creation and email delivery with cooldown rollback on failure
+    try {
+      // Invalidate previous active tokens for this owner to prevent token accumulation
+      await tokenRepo.invalidateTokensForUser(user.id);
 
-    // 7. Generate cryptographically secure random token (32 bytes = 256 bits)
-    const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      // 8. Generate cryptographically secure random token (32 bytes = 256 bits)
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-    // 8. Store token hash with 15-minute expiration
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    await tokenRepo.createToken({
-      userId: user.id,
-      email: user.email,
-      tokenHash,
-      expiresAt,
-    });
+      // 9. Store token hash with 15-minute expiration
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await tokenRepo.createToken({
+        userId: user.id,
+        email: user.email,
+        tokenHash,
+        expiresAt,
+      });
 
-    // 9. Construct reset URL using trusted, configured application base URL (never arbitrary Host headers)
-    const baseUrl =
-      process.env.APP_BASE_URL ||
-      process.env.APP_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-    const cleanBase = baseUrl.replace(/\/+$/, '');
-    const resetUrl = `${cleanBase}/reset-password?token=${encodeURIComponent(rawToken)}`;
+      // 10. Construct reset URL using trusted, configured application base URL (never arbitrary Host headers)
+      const baseUrl =
+        process.env.APP_BASE_URL ||
+        process.env.APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+      const cleanBase = baseUrl.replace(/\/+$/, '');
+      const resetUrl = `${cleanBase}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-    // 10. Dispatch email via custom emailSender or official Resend SDK
-    if (this.deps.emailSender) {
-      const sendResult = await this.deps.emailSender(user.email, resetUrl);
-      if (!sendResult.success) {
-        throw new AuthError(
-          sendResult.error || 'Failed to dispatch password reset email.',
-          500
-        );
+      // 11. Dispatch email via custom emailSender or official Resend SDK
+      if (this.deps.emailSender) {
+        const sendResult = await this.deps.emailSender(user.email, resetUrl);
+        if (!sendResult.success) {
+          throw new AuthError(
+            sendResult.error || 'Failed to dispatch password reset email.',
+            500
+          );
+        }
+      } else {
+        const sendResult = await sendPasswordResetEmail(user.email, resetUrl);
+        if (!sendResult.success) {
+          throw new AuthError(
+            sendResult.error || 'Failed to deliver password reset email.',
+            500
+          );
+        }
       }
-    } else {
-      const sendResult = await sendPasswordResetEmail(user.email, resetUrl);
-      if (!sendResult.success) {
-        throw new AuthError(
-          sendResult.error || 'Failed to deliver password reset email.',
-          500
-        );
-      }
+    } catch (err) {
+      await this.deps.rateLimitStore.reset(cooldownKey);
+      throw err;
     }
 
-    return { message: GENERIC_SUCCESS };
+    return {
+      message: 'Password reset instructions have been sent to your registered email address.',
+    };
   }
 
   /**
@@ -803,7 +834,7 @@ try {
     await tokenRepo.invalidateTokensForUser(user.id);
 
     return {
-      message: 'Password has been reset successfully. Please sign in with your new password.',
+      message: 'Password reset successfully. You can now sign in with your new password.',
     };
   }
 
