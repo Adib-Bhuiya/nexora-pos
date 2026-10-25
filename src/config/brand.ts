@@ -11,4 +11,4 @@ export const BRAND = {
  * Set your Facebook page URL here (e.g. 'https://www.facebook.com/nexorapos').
  * When left empty (''), clicking the sidebar branding element is safely inactive.
  */
-export const FACEBOOK_PAGE_URL: string = '';
+export const FACEBOOK_PAGE_URL: string = 'https://www.facebook.com/profile.php?id=61592420956748';
