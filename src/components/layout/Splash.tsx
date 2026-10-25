@@ -5,11 +5,35 @@ import { BRAND } from '@/config/brand';
 
 export function Splash() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-bg">
-      <div className="flex flex-col items-center gap-4 text-muted" role="status">
-        <div className="grid h-[52px] w-[52px] place-items-center rounded-2xl bg-brand text-[24px] font-extrabold text-white">N</div>
-        <div className="flex items-center gap-2 text-xs font-semibold">
-          <LoaderCircle size={14} className="animate-spin" aria-hidden /> Opening {BRAND.name} {BRAND.suffix}…
+    <div
+      className="fixed inset-0 z-50 flex min-h-dvh flex-col items-center justify-center bg-bg px-4 select-none"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="brand-splash-enter flex flex-col items-center text-center">
+        {/* Branded Logo with gentle breathing pulse */}
+        <div className="relative mb-4">
+          <div className="brand-logo-pulse grid h-16 w-16 place-items-center rounded-2xl bg-brand text-[28px] font-black text-white shadow-[0_12px_32px_#315bd638] transition-transform">
+            N
+          </div>
+        </div>
+
+        {/* Brand Name & Tagline matching navbar */}
+        <div className="mb-6 leading-tight">
+          <div className="text-[21px] font-extrabold tracking-[-0.5px] text-ink">
+            <span>{BRAND.name}</span> <span className="text-brand">{BRAND.suffix}</span>
+          </div>
+          <div className="mt-1 text-[10px] font-extrabold tracking-[1.4px] text-muted uppercase">
+            {BRAND.tagline}
+          </div>
+        </div>
+
+        {/* Elegant loading indicator */}
+        <div className="inline-flex items-center gap-2.5 rounded-full border border-line bg-white px-4 py-2 shadow-sm">
+          <LoaderCircle size={15} className="animate-spin text-brand" aria-hidden />
+          <span className="text-xs font-semibold text-muted">
+            Loading {BRAND.name} {BRAND.suffix}…
+          </span>
         </div>
       </div>
     </div>
